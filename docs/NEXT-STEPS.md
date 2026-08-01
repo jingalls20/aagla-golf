@@ -1,5 +1,21 @@
 # Where this got to, and what's next
 
+## Live
+
+**https://aagla-golf.vercel.app** — deployed to Vercel, reading the live
+database. No sign-in needed: both chapters publish a public board, so the whole
+read surface works signed out.
+
+Verified against the running site: the chapter picker lists both leagues; Iowa's
+2026 standings render with dense ranking working correctly (two players sharing
+4th on 8.5 points); Seattle's handicaps show admin overrides labelled as such;
+and `/aagla-iowa/board` renders with no navigation and no email addresses, as an
+embeddable scoreboard should.
+
+Deployed straight from source rather than from GitHub, so there is no repo
+connected yet and no automatic redeploy on change. See "If you want GitHub
+later" below.
+
 ## Done
 
 **Supabase project `aagla-golf`** (ref `fxkduqairawxmhxatpxd`, us-east-1) is
@@ -40,34 +56,23 @@ Read `docs/MIGRATION.md` for what changed in the data and why, and
 
 ## To pick up
 
-### 1. Push to GitHub
+### If you want GitHub later
 
-The repo is committed but has no remote (this was built in a sandbox with no
-GitHub access).
+Nothing about this needs redoing. The repo already has full git history; adding
+a remote is two commands whenever you feel like it:
 
 ```bash
 npm install
 npm run verify          # typecheck + lint + format + 51 tests
-git remote add origin git@github.com:<you>/aagla-golf.git
+git remote add origin https://github.com/<you>/aagla-golf.git
 git push -u origin main
 ```
 
-`npm install` has not been run anywhere yet, so expect the dependency versions
-in `package.json` to want a first resolution — and `npm run verify` to be the
-first real exercise of the lint and typecheck config.
+Then import the repo in Vercel and it redeploys on every push, with a preview
+URL per change. Until then, deploys happen by pushing the source tree straight
+to Vercel, and the zip you were sent is the backup.
 
-### 2. Wire up Vercel
-
-Create a Vercel project from the GitHub repo (the existing
-`aagla-seattle-golf` project is unrelated and was left alone). Set from the
-Supabase dashboard:
-
-- `NEXT_PUBLIC_SUPABASE_URL`
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-- `SUPABASE_SERVICE_ROLE_KEY`
-- `SUPABASE_PROJECT_ID`
-
-### 3. Auth, then the screens
+### Next up
 
 Enable Google OAuth and magic links in Supabase Auth, then build out, roughly
 in this order:
