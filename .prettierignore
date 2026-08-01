@@ -1,0 +1,4 @@
+.next
+node_modules
+supabase/migrations
+lib/types/database.ts
