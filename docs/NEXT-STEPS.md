@@ -1,0 +1,98 @@
+# Where this got to, and what's next
+
+## Done
+
+**Supabase project `aagla-golf`** (ref `fxkduqairawxmhxatpxd`, us-east-1) is
+live with the full schema, row-level security on every table, and all fourteen
+years of Iowa Chapter history loaded and verified. Supabase's security linter
+reports zero findings.
+
+**The domain layer** — every scoring, handicap and standings rule from the old
+`Code.gs` — is ported to pure TypeScript in `lib/domain/` with 51 tests.
+
+**Verified, not just written:**
+
+- Every score column summed per season and per source against the spreadsheet.
+  All 16 groups matched exactly, fractional handicaps to six decimal places.
+- The ported engine re-derives the correct net score for 97 of 97 events in
+  league history.
+- Anonymous access probed directly against the database: the public board reads
+  (leagues, players, scores, handicaps, seasons) but emails, member roles and
+  the audit log return zero rows, and all five write paths tried — insert a
+  score, rename a player, delete every score, create a league, flip a league's
+  settings — were refused.
+
+Read `docs/MIGRATION.md` for what changed in the data and why, and
+`docs/RULES.md` for the league's rules written out properly for the first time.
+
+## To pick up
+
+### 1. Push to GitHub
+
+The repo is committed but has no remote (this was built in a sandbox with no
+GitHub access).
+
+```bash
+npm install
+npm run verify          # typecheck + lint + format + 51 tests
+git remote add origin git@github.com:<you>/aagla-golf.git
+git push -u origin main
+```
+
+`npm install` has not been run anywhere yet, so expect the dependency versions
+in `package.json` to want a first resolution — and `npm run verify` to be the
+first real exercise of the lint and typecheck config.
+
+### 2. Wire up Vercel
+
+Create a Vercel project from the GitHub repo (the existing
+`aagla-seattle-golf` project is unrelated and was left alone). Set from the
+Supabase dashboard:
+
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `SUPABASE_PROJECT_ID`
+
+### 3. Auth, then the screens
+
+Enable Google OAuth and magic links in Supabase Auth, then build out, roughly
+in this order:
+
+1. `/login` and `/auth/callback`, plus first-sign-in linking — match a new
+   user's email against `player_contacts` and create their `league_members`
+   row. Josh needs `owner`; London Usher and Hayden Zeidler need `admin`.
+2. Read-only screens: dashboard (standings + the player×event matrix), event
+   results, handicaps, player profiles, and `/aagla-iowa/board` for the
+   embeddable scoreboard. Ship these before any write path — parity is easy to
+   eyeball against the live Apps Script app.
+3. Write paths: score entry (personal card and admin grid), event create/edit,
+   player and role management, handicap overrides. The old UI saved the admin
+   grid one row at a time with a separate round trip each; this should be a
+   single transactional submit.
+4. Cutover: repoint `tinyurl.com/AAGLAGOLF`, replace the Apps Script web app
+   with a notice pointing at the new URL, freeze the sheet as an archive.
+
+`app/page.tsx` is a working league picker and shows the intended shape: query
+through the RLS-scoped server client and render whatever comes back, rather
+than filtering by permission in application code.
+
+## Two things worth a decision
+
+**The five events where the engine disagrees with the old records.**
+Three are Championships where the spreadsheet broke a tie between equal net
+scores somehow — a playoff or countback the app doesn't model. Championships
+score no points, so nothing is affected. 2013 #1 predates the league's formulas.
+2022 #70 has Angelo Gutierrez recorded last on a valid net of 6, while another
+player on the same 6 placed eighth — possibly a disqualification. None of these
+change any stored result; they only tell us where a recompute would differ.
+Worth confirming whether the Championship tie-break is a real rule that should
+be modelled.
+
+**Handicaps computed from phantom scores.** The 15 corrected rows were feeding
+into the handicap formula, which averages a player's *best* scores. Locked
+handicaps for the seasons following 2021, 2022 and 2024 may be slightly low for
+Ryan Lameroux, Bill Ice, Will Ice, Josh Rudman, David Back, Jansel Herrera and
+John Gookin. The stored values were left untouched rather than silently
+recomputed — deleting a player's auto-calculated (non-override) handicap row
+makes it recompute from the corrected history next time it's read.
