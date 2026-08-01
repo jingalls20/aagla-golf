@@ -3,24 +3,37 @@
 ## Done
 
 **Supabase project `aagla-golf`** (ref `fxkduqairawxmhxatpxd`, us-east-1) is
-live with the full schema, row-level security on every table, and all fourteen
-years of Iowa Chapter history loaded and verified. Supabase's security linter
-reports zero findings.
+live with the full schema, row-level security on every table, and **both
+chapters loaded and verified** — Iowa's fourteen years and Seattle's two.
+Supabase's security linter reports zero findings.
+
+| | `aagla-iowa` | `aagla-seattle` |
+|---|---|---|
+| Seasons | 14 (2013–2026) | 2 (2025–2026) |
+| Players | 26 | 8 |
+| Events | 100 | 14 |
+| Scores | 864 | 63 |
 
 **The domain layer** — every scoring, handicap and standings rule from the old
 `Code.gs` — is ported to pure TypeScript in `lib/domain/` with 51 tests.
 
 **Verified, not just written:**
 
-- Every score column summed per season and per source against the spreadsheet.
-  All 16 groups matched exactly, fractional handicaps to six decimal places.
-- The ported engine re-derives the correct net score for 97 of 97 events in
-  league history.
+- Every score column summed per season and per source against both
+  spreadsheets. All 20 groups matched exactly, fractional handicaps to six
+  decimal places.
+- The ported engine re-derives the correct net score for 97 of 97 Iowa events,
+  and gets a clean 12 of 12 on net, place AND points for Seattle.
 - Anonymous access probed directly against the database: the public board reads
   (leagues, players, scores, handicaps, seasons) but emails, member roles and
   the audit log return zero rows, and all five write paths tried — insert a
   score, rename a player, delete every score, create a league, flip a league's
   settings — were refused.
+- **Cross-chapter isolation probed with a real signed-in user.** An admin of
+  Iowa could not write a Seattle score, rename a Seattle player, delete Seattle
+  events, or see a single Seattle email or member role — while still being able
+  to write their own chapter, which is the control that proves the tenancy
+  boundary is doing the blocking rather than a broken policy.
 
 Read `docs/MIGRATION.md` for what changed in the data and why, and
 `docs/RULES.md` for the league's rules written out properly for the first time.
@@ -61,17 +74,22 @@ in this order:
 
 1. `/login` and `/auth/callback`, plus first-sign-in linking — match a new
    user's email against `player_contacts` and create their `league_members`
-   row. Josh needs `owner`; London Usher and Hayden Zeidler need `admin`.
+   row. Roles are per-league, so Josh needs a row in each: `owner` of
+   `aagla-iowa` and `owner` of `aagla-seattle`. London Usher and Hayden
+   Zeidler need `admin` on Iowa. Seattle's old `adminEmails` was empty, so
+   there is nobody else to carry over there.
 2. Read-only screens: dashboard (standings + the player×event matrix), event
-   results, handicaps, player profiles, and `/aagla-iowa/board` for the
-   embeddable scoreboard. Ship these before any write path — parity is easy to
-   eyeball against the live Apps Script app.
+   results, handicaps, player profiles, and `/<slug>/board` for the embeddable
+   scoreboard. Ship these before any write path — parity is easy to eyeball
+   against the two live Apps Script apps. Having two chapters loaded from day
+   one is useful here: any screen that accidentally forgets to scope by league
+   will show Iowa's 26 players next to Seattle's 8 and be obvious immediately.
 3. Write paths: score entry (personal card and admin grid), event create/edit,
    player and role management, handicap overrides. The old UI saved the admin
    grid one row at a time with a separate round trip each; this should be a
    single transactional submit.
-4. Cutover: repoint `tinyurl.com/AAGLAGOLF`, replace the Apps Script web app
-   with a notice pointing at the new URL, freeze the sheet as an archive.
+4. Cutover: repoint `tinyurl.com/AAGLAGOLF`, replace **both** Apps Script web
+   apps with a notice pointing at the new URL, freeze both sheets as archives.
 
 `app/page.tsx` is a working league picker and shows the intended shape: query
 through the RLS-scoped server client and render whatever comes back, rather
@@ -88,6 +106,10 @@ player on the same 6 placed eighth — possibly a disqualification. None of thes
 change any stored result; they only tell us where a recompute would differ.
 Worth confirming whether the Championship tie-break is a real rule that should
 be modelled.
+
+**Seattle event 11 (Bellevue)** is marked `scheduled` but already has a score
+recorded against it. Carried over as-is; worth a glance next time you're in the
+admin screen.
 
 **Handicaps computed from phantom scores.** The 15 corrected rows were feeding
 into the handicap formula, which averages a player's *best* scores. Locked

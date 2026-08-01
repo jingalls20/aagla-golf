@@ -1,31 +1,44 @@
 # Migrating off Google Sheets
 
-How the AAGLA Iowa Chapter's fourteen years of league history moved from the
+How the AAGLA chapters' league history moved from the
 Apps Script app into Postgres, what was found along the way, and what was
 deliberately changed.
 
-Source: **AAGLA Data Set - Iowa Chapter**
-(`1SYPaJHwIE56o17fHP3928cWXJh_oJyknxWjqZm9E9iY`), exported 1 August 2026 —
-tabs `App Players`, `App Events`, `App Scores`, `App Handicaps`, `App Config`.
+Both chapters ran on the same Apps Script app, each bound to its own
+spreadsheet, so both had identical `App Players` / `App Events` / `App Scores` /
+`App Handicaps` / `App Config` tabs and both migrated the same way.
 
-The migration lives in `supabase/migrations/` as ordinary migrations
-(`0004_seed_iowa_chapter.sql`, `0005_fix_phantom_zero_scores.sql`) rather than
-as a one-off script, so a database can be rebuilt from scratch with nothing but
-the repo.
+| Source | Exported |
+|---|---|
+| **AAGLA Data Set - Iowa Chapter** (`1SYPaJHwIE56o17fHP3928cWXJh_oJyknxWjqZm9E9iY`) | 1 August 2026 |
+| **AAGLA Data Set - Seattle Chapter** (`1NZEFnPGx0x_Ghs0fYKEe0OvCt-GgEJ9_-vbq4qzE4xU`) | 1 August 2026 |
+
+The migrations live in `supabase/migrations/` as ordinary migrations
+(`0004`, `0005`, `0006`) rather than as one-off scripts, so a database can be
+rebuilt from scratch with nothing but the repo.
 
 ## What landed
 
-| | Rows |
-|---|---|
-| Leagues | 1 (`aagla-iowa`) |
-| Seasons | 14 (2013–2026) |
-| Players | 26 |
-| Player contacts | 7 |
-| Events | 100 |
-| Handicaps | 154 |
-| Scores | 864 — 836 historical, 10 entered in the app, 18 missed |
+| | `aagla-iowa` | `aagla-seattle` |
+|---|---|---|
+| Seasons | 14 (2013–2026) | 2 (2025–2026) |
+| Players | 26 | 8 |
+| Player contacts | 7 | 1 |
+| Events | 100 | 14 |
+| Handicaps | 154 | 16 |
+| Scores | 864 | 63 |
 
-## Fidelity check
+Iowa's scores break down as 836 historical, 10 entered in the app and 18 missed;
+Seattle's as 56 historical, 6 new and 1 missed.
+
+Five people play in both chapters — Angelo Gutierrez, Anthony Dworak, Josh
+Ingalls, Josh Ramos and Tim Paccione. They are deliberately separate player rows
+per league. A handicap, a history and a season standing belong to the chapter
+they were earned in, and `players` is league-scoped for exactly this reason. If
+a cross-chapter identity is ever wanted (a combined career record, say), that's
+a `people` table above `players`, not a merge.
+
+## Fidelity check — Iowa
 
 Every score column was summed per season and per source and compared against
 the same totals computed independently from the spreadsheet: row counts, true
@@ -34,7 +47,7 @@ scores, handicaps applied, course differentials, net scores, places and points.
 handicap sums agreeing to six decimal places (2013's handicaps total
 308.651190 on both sides).
 
-## Deliberate changes
+## Deliberate changes — Iowa
 
 Three, all of them corrections rather than reinterpretations.
 
@@ -120,6 +133,39 @@ place and points verbatim and are never recomputed — that rule is enforced by
 `scores.source` and honoured by the recompute engine. The comparison is a test
 of the *port*, not a proposal to rewrite anyone's remembered finish.
 
+## Seattle
+
+Seattle is a much younger chapter — founded 2025 — and its data was created
+entirely by the Apps Script app rather than inherited from years of hand-kept
+spreadsheets. It shows. The same checks that found three separate problems in
+Iowa's data found nothing at all here:
+
+- No duplicate or near-duplicate player names.
+- No orphaned event or player references.
+- No duplicated handicap rows, and no blank ones.
+- **No phantom zero-score rows.** Every recorded net score is internally
+  consistent with its true score, handicap and course differential.
+
+Aggregates were compared against the spreadsheet the same way, and all four
+season/source groups matched exactly.
+
+Re-deriving Seattle's history with the ported engine:
+
+| | |
+|---|---|
+| Net score | **12 / 12 events** |
+| Place | **12 / 12 events** |
+| Points | **12 / 12 events** |
+
+A clean sweep, which is a useful independent check on the port: Seattle's
+records were produced by the old app's own calculation rather than by years of
+hand-maintained formulas, so perfect agreement is exactly what a faithful port
+should produce. Where Iowa disagrees, it disagrees on pre-app data.
+
+One small oddity, carried over as-is: Seattle event 11 (Bellevue) is marked
+`scheduled` but already has one score recorded against it. Harmless, and worth
+a glance next time someone is in the admin screen.
+
 ## Things that were checked and turned out fine
 
 - **Will Ice vs. Bill Ice are two different people.** The original handoff
@@ -136,12 +182,20 @@ of the *port*, not a proposal to rewrite anyone's remembered finish.
 
 ## Not yet migrated
 
-`App Config`'s `adminEmails` and `ownerEmail` have no equivalent rows yet,
-because `league_members` links to `auth.users` and nobody has signed in to the
-new app. On first sign-in, a user whose email matches a `player_contacts` row is
-linked to that player automatically. Josh (`jingalls20@gmail.com`) needs the
-`owner` role, and London Usher and Hayden Zeidler need `admin`, once their
-accounts exist.
+`App Config`'s `adminEmails` and `ownerEmail` have no equivalent rows yet in
+either league, because `league_members` links to `auth.users` and nobody has
+signed in to the new app. On first sign-in, a user whose email matches a
+`player_contacts` row is linked to that player automatically.
+
+Once accounts exist, the roles to set are:
+
+- **`aagla-iowa`** — Josh (`jingalls20@gmail.com`) as `owner`; London Usher and
+  Hayden Zeidler as `admin`.
+- **`aagla-seattle`** — Josh as `owner`. The Seattle sheet's `adminEmails` was
+  empty, so there is nobody else to carry over.
+
+Note that Josh needs a membership row in *each* league; the roles are per-league
+by design.
 
 The original spreadsheet's other tabs — `AAGLA OVERVIEW`, `Event Scores`,
 `Free Strokes (FS)`, `Data Admin`, the per-year sheets — were the *inputs* to

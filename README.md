@@ -74,7 +74,15 @@ functions before merging.
 
 The app is multi-tenant from the ground up. Every row carries a `league_id`, and
 RLS scopes reads and writes to leagues you belong to. Routes are namespaced by
-league slug (`/aagla-iowa/standings`).
+league slug (`/aagla-iowa/standings`, `/aagla-seattle/standings`).
+
+Two chapters are loaded: `aagla-iowa` (2013–2026) and `aagla-seattle`
+(2025–2026). Roles are per-league — being an admin of one grants nothing in the
+other, and that boundary is enforced in Postgres, not in application code.
+
+Five people play in both chapters and have a separate `players` row in each.
+That is deliberate: a handicap and a season standing belong to the chapter they
+were earned in.
 
 A league with `public_board = true` exposes a read-only scoreboard at
 `/<slug>/board` with no sign-in and no navigation, intended to be embedded in a
