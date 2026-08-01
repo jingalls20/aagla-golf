@@ -1,54 +1,43 @@
 import Link from 'next/link';
-import { createClient } from '@/lib/supabase/server';
+import { getLeagues } from '@/lib/data/queries';
+import { Empty } from '@/components/ui';
 
 /**
- * League picker.
+ * Chapter picker.
  *
- * Anonymous visitors see only leagues with a public board, because that is
- * what the row-level security policy on `leagues` allows them to select. No
- * filtering is done here on purpose -- the database decides what is visible,
- * and this page renders whatever comes back.
+ * No permission filtering here on purpose: row-level security decides which
+ * leagues are visible, and this renders whatever comes back. An anonymous
+ * visitor sees the chapters with a public board; a signed-in member also sees
+ * any private chapter they belong to.
  */
 export default async function HomePage() {
-  const supabase = await createClient();
-  const { data: leagues, error } = await supabase
-    .from('leagues')
-    .select('slug, name, chapter')
-    .order('name');
-
-  if (error) {
-    return (
-      <main className="mx-auto max-w-2xl p-8">
-        <h1 className="text-2xl font-semibold">AAGLA Golf</h1>
-        <p className="mt-4 text-red-600">Could not load leagues: {error.message}</p>
-      </main>
-    );
-  }
+  const leagues = await getLeagues();
 
   return (
-    <main className="mx-auto max-w-2xl p-8">
+    <main className="mx-auto max-w-2xl px-4 py-12">
       <h1 className="text-2xl font-semibold">AAGLA Golf</h1>
+      <p className="mt-1 text-sm text-slate-500">
+        Scores, handicaps and season standings.
+      </p>
 
-      {leagues && leagues.length > 0 ? (
-        <ul className="mt-6 space-y-2">
+      {leagues.length === 0 ? (
+        <Empty>No chapters available.</Empty>
+      ) : (
+        <ul className="mt-8 space-y-2">
           {leagues.map((league) => (
-            <li key={league.slug as string}>
+            <li key={league.id}>
               <Link
                 href={`/${league.slug}`}
-                className="block rounded-lg border border-slate-200 p-4 hover:border-fairway-500 dark:border-slate-800"
+                className="flex items-baseline justify-between rounded-xl border border-slate-200 p-4 hover:border-fairway-500 dark:border-slate-800"
               >
-                <span className="font-medium">{league.name as string}</span>
+                <span className="font-medium">{league.name}</span>
                 {league.chapter ? (
-                  <span className="ml-2 text-sm text-slate-500">
-                    {league.chapter as string}
-                  </span>
+                  <span className="text-sm text-slate-400">{league.chapter}</span>
                 ) : null}
               </Link>
             </li>
           ))}
         </ul>
-      ) : (
-        <p className="mt-6 text-slate-500">No leagues yet.</p>
       )}
     </main>
   );
