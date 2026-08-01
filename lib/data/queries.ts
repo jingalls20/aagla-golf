@@ -190,8 +190,12 @@ export async function getStandings(
       .map((s) => ({ playerId: s.playerId, eventPoints: s.eventPoints as number })),
   );
 
-  const nameOf = new Map(scores.map((s) => [s.playerId, s.playerName]));
-  const fsOf = new Map(handicaps.map((h) => [h.playerId, h.fs]));
+  const nameOf = new Map<string, string>(
+    scores.map((s): [string, string] => [s.playerId, s.playerName]),
+  );
+  const fsOf = new Map<string, number>(
+    handicaps.map((h): [string, number] => [h.playerId, h.fs]),
+  );
 
   return ranked.map((r) => ({
     ...r,

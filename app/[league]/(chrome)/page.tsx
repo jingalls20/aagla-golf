@@ -33,10 +33,15 @@ export default async function StandingsPage({
 
   // Player × event grid. Only events that have results get a column.
   const played = events.filter((e) => scores.some((s) => s.eventId === e.id));
-  const cell = new Map(scores.map((s) => [`${s.playerId}:${s.eventId}`, s]));
-  const rowPlayers = [
-    ...new Map(scores.map((s) => [s.playerId, s.playerName])).entries(),
-  ].sort((a, b) => a[1].localeCompare(b[1]));
+  const cell = new Map<string, (typeof scores)[number]>();
+  const nameByPlayer = new Map<string, string>();
+  for (const s of scores) {
+    cell.set(`${s.playerId}:${s.eventId}`, s);
+    nameByPlayer.set(s.playerId, s.playerName);
+  }
+  const rowPlayers = [...nameByPlayer.entries()].sort((a, b) =>
+    a[1].localeCompare(b[1]),
+  );
 
   return (
     <div className="space-y-6">

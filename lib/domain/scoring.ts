@@ -31,7 +31,9 @@ export function netScoreFor(score: {
  */
 export function denseRank(values: number[]): Map<number, number> {
   const unique = Array.from(new Set(values)).sort((a, b) => a - b);
-  return new Map(unique.map((value, index) => [value, index + 1]));
+  return new Map<number, number>(
+    unique.map((value, index): [number, number] => [value, index + 1]),
+  );
 }
 
 export interface RecomputeInput {
