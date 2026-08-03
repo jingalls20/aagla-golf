@@ -12,7 +12,15 @@
  */
 
 export type EventType = 'event' | 'major' | 'championship';
-export type ScoreSource = 'historical' | 'new' | 'missed';
+/**
+ * 'missed' is the system: the recompute engine writes it automatically once
+ * half the roster has posted a score, and clears it the moment that's no
+ * longer true. 'dnp' is the admin: an explicit "this player did not play"
+ * assertion made from the score entry screen, which sticks until the admin
+ * changes it. Both place a player last and award that place's points without
+ * touching their handicap.
+ */
+export type ScoreSource = 'historical' | 'new' | 'missed' | 'dnp';
 export type PlayerStatus = 'active' | 'inactive';
 
 /**
@@ -53,7 +61,7 @@ export interface DomainEvent {
 /** A score row as the rules see it. */
 export interface DomainScore {
   playerId: string;
-  /** Strokes relative to par. Null only for a 'missed' row. */
+  /** Strokes relative to par. Null only for a 'missed' or 'dnp' row. */
   trueScore: number | null;
   /** The handicap actually applied when this round was recorded. */
   fsApplied: number | null;

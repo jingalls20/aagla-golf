@@ -1,28 +1,74 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { getHandicaps, getLeague, getSeasonYears } from '@/lib/data/queries';
-import { Badge, Card, Empty, TableWrap, Td, Th, YearTabs, fmt } from '@/components/ui';
+import { currentYearOf, getHandicaps, getLeague, getSeasons } from '@/lib/data/queries';
+import { Badge, Card, Empty, fmt } from '@/components/ui';
+import { Avatar } from '@/components/avatar';
+import { InactiveToggle, NavSelect } from '@/components/selectors';
+import { SortableTable, type SortableColumn, type SortableRow } from '@/components/sortable-table';
 
 export default async function HandicapsPage({
   params,
   searchParams,
 }: {
   params: Promise<{ league: string }>;
-  searchParams: Promise<{ year?: string }>;
+  searchParams: Promise<{ year?: string; showInactive?: string }>;
 }) {
   const { league: slug } = await params;
-  const { year: yearParam } = await searchParams;
+  const { year: yearParam, showInactive: showInactiveParam } = await searchParams;
+  const showInactive = showInactiveParam === '1';
   const league = await getLeague(slug);
   if (!league) notFound();
 
-  const years = await getSeasonYears(league.id);
-  if (years.length === 0) return <Empty>No seasons yet.</Empty>;
-  const year = yearParam && years.includes(Number(yearParam)) ? Number(yearParam) : years[0];
-  const handicaps = await getHandicaps(league.id, year);
+  const seasons = await getSeasons(league.id);
+  if (seasons.length === 0) return <Empty>No seasons yet.</Empty>;
+  const years = seasons.map((s) => s.year);
+  const year =
+    yearParam && years.includes(Number(yearParam)) ? Number(yearParam) : (currentYearOf(seasons) as number);
+  const allHandicaps = await getHandicaps(league.id, year);
+  const handicaps = showInactive ? allHandicaps : allHandicaps.filter((h) => h.status === 'active');
+
+  const columns: SortableColumn[] = [
+    { key: 'player', label: 'Player', sortable: true },
+    { key: 'fs', label: 'Free strokes', align: 'right', sortable: true },
+    { key: 'note', label: 'How it was worked out' },
+  ];
+
+  const rows: SortableRow[] = handicaps.map((h) => ({
+    key: h.playerId,
+    sortValues: { player: h.playerName, fs: h.fs },
+    cells: {
+      player: (
+        <Link
+          href={`/${slug}/players/${h.playerId}`}
+          className="flex items-center gap-2 hover:text-fairway-600 hover:underline"
+        >
+          <Avatar name={h.playerName} photoUrl={h.photoUrl} />
+          <span>{h.playerName}</span>
+          {h.status === 'inactive' ? <Badge>inactive</Badge> : null}
+        </Link>
+      ),
+      fs: <span className="font-medium">{fmt(h.fs, 2)}</span>,
+      note: (
+        <span className="text-slate-400">
+          {h.isOverride ? <Badge tone="amber">set by an admin</Badge> : h.note ?? '—'}
+        </span>
+      ),
+    },
+  }));
 
   return (
     <div className="space-y-6">
-      <YearTabs years={years} current={year} hrefFor={(y) => `/${slug}/handicaps?year=${y}`} />
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <NavSelect
+          label="Season"
+          value={String(year)}
+          options={years.map((y) => ({ value: String(y), label: String(y) }))}
+          hrefs={Object.fromEntries(
+            years.map((y): [string, string] => [String(y), `/${slug}/handicaps?year=${y}`]),
+          )}
+        />
+        <InactiveToggle show={showInactive} />
+      </div>
 
       <Card title={`${year} handicaps`}>
         <p className="mb-3 text-xs text-slate-400">
@@ -33,40 +79,7 @@ export default async function HandicapsPage({
         {handicaps.length === 0 ? (
           <Empty>No handicaps locked for {year} yet.</Empty>
         ) : (
-          <TableWrap>
-            <thead>
-              <tr>
-                <Th>Player</Th>
-                <Th align="right">Free strokes</Th>
-                <Th>How it was worked out</Th>
-              </tr>
-            </thead>
-            <tbody>
-              {handicaps.map((h) => (
-                <tr key={h.playerId}>
-                  <Td>
-                    <Link
-                      href={`/${slug}/players/${h.playerId}`}
-                      className="hover:text-fairway-600 hover:underline"
-                    >
-                      {h.playerName}
-                    </Link>
-                    {h.status === 'inactive' ? (
-                      <span className="ml-2">
-                        <Badge>inactive</Badge>
-                      </span>
-                    ) : null}
-                  </Td>
-                  <Td align="right">
-                    <span className="font-medium">{fmt(h.fs, 2)}</span>
-                  </Td>
-                  <Td muted>
-                    {h.isOverride ? <Badge tone="amber">set by an admin</Badge> : h.note ?? '—'}
-                  </Td>
-                </tr>
-              ))}
-            </tbody>
-          </TableWrap>
+          <SortableTable columns={columns} rows={rows} />
         )}
       </Card>
     </div>

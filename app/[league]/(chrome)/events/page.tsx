@@ -1,47 +1,117 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getEventResults, getEvents, getLeague } from '@/lib/data/queries';
-import { Badge, Card, Empty, TableWrap, Td, Th, fmt, toPar } from '@/components/ui';
+import { Badge, Card, Empty, fmt, toPar } from '@/components/ui';
+import { Avatar } from '@/components/avatar';
+import { NavSelect } from '@/components/selectors';
+import { SortableTable, type SortableColumn, type SortableRow } from '@/components/sortable-table';
 
 export default async function EventsPage({
   params,
   searchParams,
 }: {
   params: Promise<{ league: string }>;
-  searchParams: Promise<{ event?: string }>;
+  searchParams: Promise<{ event?: string; year?: string }>;
 }) {
   const { league: slug } = await params;
-  const { event: eventParam } = await searchParams;
+  const { event: eventParam, year: yearParam } = await searchParams;
   const league = await getLeague(slug);
   if (!league) notFound();
 
-  const events = (await getEvents(league.id)).sort(
+  const allEvents = (await getEvents(league.id)).sort(
     (a, b) => b.year - a.year || b.sequence - a.sequence,
   );
-  if (events.length === 0) return <Empty>No events yet.</Empty>;
+  if (allEvents.length === 0) return <Empty>No events yet.</Empty>;
 
-  // Default to the most recent event that actually has results.
-  const selected = events.find((e) => e.id === eventParam) ?? events.find((e) => e.status === 'played') ?? events[0];
+  const years = [...new Set(allEvents.map((e) => e.year))].sort((a, b) => b - a);
+
+  // Default to the most recent event that actually has results, then let the
+  // year and event dropdowns narrow from there.
+  const defaultEvent =
+    allEvents.find((e) => e.id === eventParam) ??
+    allEvents.find((e) => e.status === 'played') ??
+    allEvents[0];
+  const year = yearParam && years.includes(Number(yearParam)) ? Number(yearParam) : defaultEvent.year;
+
+  const eventsInYear = allEvents.filter((e) => e.year === year);
+  const selected =
+    eventsInYear.find((e) => e.id === eventParam) ??
+    eventsInYear.find((e) => e.status === 'played') ??
+    eventsInYear[0];
+
   const results = await getEventResults(selected.id);
 
+  const columns: SortableColumn[] = [
+    { key: 'place', label: 'Place', align: 'right', sortable: true },
+    { key: 'player', label: 'Player', sortable: true },
+    { key: 'score', label: 'Score', align: 'right', sortable: true },
+    { key: 'handicap', label: 'Handicap', align: 'right', sortable: true },
+    { key: 'diff', label: 'Course diff.', align: 'right', sortable: true },
+    { key: 'net', label: 'Net', align: 'right', sortable: true },
+    { key: 'points', label: 'Points', align: 'right', sortable: true },
+  ];
+
+  const rows: SortableRow[] = results.map((r) => ({
+    key: r.id,
+    sortValues: {
+      place: r.place,
+      player: r.playerName,
+      score: r.trueScore,
+      handicap: r.fsApplied,
+      diff: r.courseDifferential,
+      net: r.netScore,
+      points: r.eventPoints,
+    },
+    cells: {
+      place: r.place ?? '—',
+      player: (
+        <Link
+          href={`/${slug}/players/${r.playerId}`}
+          className="flex items-center gap-2 hover:text-fairway-600 hover:underline"
+        >
+          <Avatar name={r.playerName} photoUrl={r.playerPhotoUrl} />
+          <span>{r.playerName}</span>
+          {r.source === 'missed' || r.source === 'dnp' ? <Badge>did not play</Badge> : null}
+        </Link>
+      ),
+      score: toPar(r.trueScore),
+      handicap: <span className="text-slate-400">{fmt(r.fsApplied)}</span>,
+      diff: (
+        <span className="text-slate-400">
+          {r.courseDifferential === 0 ? '—' : fmt(r.courseDifferential)}
+        </span>
+      ),
+      net: toPar(r.netScore),
+      points: fmt(r.eventPoints),
+    },
+  }));
+
   return (
-    <div className="grid gap-6 md:grid-cols-[220px_1fr]">
-      <nav className="max-h-[70vh] space-y-1 overflow-y-auto pr-1">
-        {events.map((e) => (
-          <Link
-            key={e.id}
-            href={`/${slug}/events?event=${e.id}`}
-            className={`block rounded-md px-2.5 py-1.5 text-sm ${
-              e.id === selected.id
-                ? 'bg-fairway-500 font-medium text-white'
-                : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'
-            }`}
-          >
-            <span className="mr-1.5 text-xs opacity-70">{e.year}</span>
-            {e.name ?? `Event #${e.legacyId ?? e.sequence}`}
-          </Link>
-        ))}
-      </nav>
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-center gap-3">
+        <NavSelect
+          label="Season"
+          value={String(year)}
+          options={years.map((y) => ({ value: String(y), label: String(y) }))}
+          hrefs={Object.fromEntries(
+            years.map((y): [string, string] => [String(y), `/${slug}/events?year=${y}`]),
+          )}
+        />
+        <NavSelect
+          label="Event"
+          value={selected.id}
+          options={eventsInYear.map((e) => ({
+            value: e.id,
+            label: e.name ?? `Event #${e.legacyId ?? e.sequence}`,
+          }))}
+          hrefs={Object.fromEntries(
+            eventsInYear.map((e): [string, string] => [
+              e.id,
+              `/${slug}/events?year=${year}&event=${e.id}`,
+            ]),
+          )}
+        />
+      </div>
 
       <Card
         title={
@@ -65,46 +135,7 @@ export default async function EventsPage({
         {results.length === 0 ? (
           <Empty>No scores recorded for this event yet.</Empty>
         ) : (
-          <TableWrap>
-            <thead>
-              <tr>
-                <Th align="right">Place</Th>
-                <Th>Player</Th>
-                <Th align="right">Score</Th>
-                <Th align="right">Handicap</Th>
-                <Th align="right">Course diff.</Th>
-                <Th align="right">Net</Th>
-                <Th align="right">Points</Th>
-              </tr>
-            </thead>
-            <tbody>
-              {results.map((r) => (
-                <tr key={r.id}>
-                  <Td align="right">{r.place ?? '—'}</Td>
-                  <Td>
-                    <Link
-                      href={`/${slug}/players/${r.playerId}`}
-                      className="hover:text-fairway-600 hover:underline"
-                    >
-                      {r.playerName}
-                    </Link>
-                    {r.source === 'missed' ? (
-                      <span className="ml-2">
-                        <Badge>did not play</Badge>
-                      </span>
-                    ) : null}
-                  </Td>
-                  <Td align="right">{toPar(r.trueScore)}</Td>
-                  <Td align="right" muted>{fmt(r.fsApplied)}</Td>
-                  <Td align="right" muted>
-                    {r.courseDifferential === 0 ? '—' : fmt(r.courseDifferential)}
-                  </Td>
-                  <Td align="right">{toPar(r.netScore)}</Td>
-                  <Td align="right">{fmt(r.eventPoints)}</Td>
-                </tr>
-              ))}
-            </tbody>
-          </TableWrap>
+          <SortableTable columns={columns} rows={rows} />
         )}
       </Card>
     </div>

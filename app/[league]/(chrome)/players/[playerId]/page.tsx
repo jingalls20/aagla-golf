@@ -2,7 +2,9 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getLeague, getPlayerProfile } from '@/lib/data/queries';
 import { LineChart } from '@/components/chart';
-import { Badge, Card, Empty, TableWrap, Td, Th, fmt, toPar } from '@/components/ui';
+import { Avatar } from '@/components/avatar';
+import { Badge, Card, Empty, fmt, toPar } from '@/components/ui';
+import { SortableTable, type SortableColumn, type SortableRow } from '@/components/sortable-table';
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
@@ -37,12 +39,56 @@ export default async function PlayerPage({
   const avg = (xs: number[]) =>
     xs.length ? Math.round((xs.reduce((a, b) => a + b, 0) / xs.length) * 100) / 100 : null;
 
+  const recordColumns: SortableColumn[] = [
+    { key: 'year', label: 'Year', align: 'right', sortable: true },
+    { key: 'event', label: 'Event', sortable: true },
+    { key: 'score', label: 'Score', align: 'right', sortable: true },
+    { key: 'handicap', label: 'Handicap', align: 'right', sortable: true },
+    { key: 'net', label: 'Net', align: 'right', sortable: true },
+    { key: 'place', label: 'Place', align: 'right', sortable: true },
+    { key: 'points', label: 'Points', align: 'right', sortable: true },
+  ];
+
+  const recordRows: SortableRow[] = [...profile.rounds].reverse().map((r, i) => ({
+    key: `${r.year}-${r.sequence}-${i}`,
+    sortValues: {
+      year: r.year,
+      event: r.eventName ?? r.eventType,
+      score: r.trueScore,
+      handicap: r.fsApplied,
+      net: r.netScore,
+      place: r.place,
+      points: r.eventPoints,
+    },
+    cells: {
+      year: r.year,
+      event: (
+        <span>
+          {r.eventName ?? '—'}
+          {r.eventType !== 'event' ? (
+            <span className="ml-2">
+              <Badge tone={r.eventType === 'championship' ? 'amber' : 'slate'}>
+                {r.eventType}
+              </Badge>
+            </span>
+          ) : null}
+        </span>
+      ),
+      score: toPar(r.trueScore),
+      handicap: <span className="text-slate-400">{fmt(r.fsApplied)}</span>,
+      net: toPar(r.netScore),
+      place: r.place ?? '—',
+      points: fmt(r.eventPoints),
+    },
+  }));
+
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-baseline gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <Link href={`/${slug}/players`} className="text-xs text-slate-400 hover:text-slate-600">
           ← All players
         </Link>
+        <Avatar name={profile.name} photoUrl={profile.photoUrl} size="lg" />
         <h2 className="text-xl font-semibold">{profile.name}</h2>
         {profile.status === 'inactive' ? <Badge>inactive</Badge> : null}
         {profile.firstYear ? (
@@ -91,41 +137,7 @@ export default async function PlayerPage({
         {profile.rounds.length === 0 ? (
           <Empty>No rounds recorded.</Empty>
         ) : (
-          <TableWrap>
-            <thead>
-              <tr>
-                <Th align="right">Year</Th>
-                <Th>Event</Th>
-                <Th align="right">Score</Th>
-                <Th align="right">Handicap</Th>
-                <Th align="right">Net</Th>
-                <Th align="right">Place</Th>
-                <Th align="right">Points</Th>
-              </tr>
-            </thead>
-            <tbody>
-              {[...profile.rounds].reverse().map((r, i) => (
-                <tr key={i}>
-                  <Td align="right">{r.year}</Td>
-                  <Td>
-                    {r.eventName ?? '—'}
-                    {r.eventType !== 'event' ? (
-                      <span className="ml-2">
-                        <Badge tone={r.eventType === 'championship' ? 'amber' : 'slate'}>
-                          {r.eventType}
-                        </Badge>
-                      </span>
-                    ) : null}
-                  </Td>
-                  <Td align="right">{toPar(r.trueScore)}</Td>
-                  <Td align="right" muted>{fmt(r.fsApplied)}</Td>
-                  <Td align="right">{toPar(r.netScore)}</Td>
-                  <Td align="right">{r.place ?? '—'}</Td>
-                  <Td align="right">{fmt(r.eventPoints)}</Td>
-                </tr>
-              ))}
-            </tbody>
-          </TableWrap>
+          <SortableTable columns={recordColumns} rows={recordRows} />
         )}
       </Card>
 

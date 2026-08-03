@@ -1,8 +1,9 @@
 import { notFound } from 'next/navigation';
 import {
+  currentYearOf,
   getHandicaps,
   getLeague,
-  getSeasonYears,
+  getSeasons,
   getStandings,
 } from '@/lib/data/queries';
 import { fmt } from '@/components/ui';
@@ -30,9 +31,13 @@ export default async function BoardPage({
   const league = await getLeague(slug);
   if (!league) notFound();
 
-  const years = await getSeasonYears(league.id);
-  if (years.length === 0) notFound();
-  const year = yearParam && years.includes(Number(yearParam)) ? Number(yearParam) : years[0];
+  const seasons = await getSeasons(league.id);
+  if (seasons.length === 0) notFound();
+  const years = seasons.map((s) => s.year);
+  const year =
+    yearParam && years.includes(Number(yearParam))
+      ? Number(yearParam)
+      : (currentYearOf(seasons) as number);
 
   const [standings, handicaps] = await Promise.all([
     getStandings(league.id, year),

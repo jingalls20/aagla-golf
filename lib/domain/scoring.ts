@@ -39,7 +39,7 @@ export function denseRank(values: number[]): Map<number, number> {
 export interface RecomputeInput {
   eventType: EventType;
   pointsTable: PointsTable;
-  /** Every score row currently recorded for this event, played or missed. */
+  /** Every score row currently recorded for this event: played, missed, or DNP. */
   scores: DomainScore[];
   /** Player IDs on the active roster at the time of the recompute. */
   activePlayerIds: string[];
@@ -49,19 +49,22 @@ export interface RecomputeOutput {
   /** Results for players who posted a score. */
   played: ScoreResult[];
   /**
-   * Synthetic last-place results for active players who did not post a score,
-   * once enough of the field has played. Empty while the event is still open.
+   * Last-place results for players who did not post a score: both players an
+   * admin explicitly marked DNP (`source: 'dnp'`, included immediately, at
+   * any point in the event) and, once enough of the field has played, the
+   * rest of the roster who stayed silent (`source: 'missed'`, synthetic).
    */
   missed: ScoreResult[];
   /**
    * Player IDs whose existing 'missed' placeholder should be deleted, because
    * the event no longer meets the threshold (a score was removed, or the roster
-   * grew). Without this the penalty would stick around after it stopped
-   * applying.
+   * grew). Never includes 'dnp' rows -- those are an admin's explicit word and
+   * only change when the admin changes them.
    */
   clearMissedFor: string[];
   /**
-   * Whether enough of the field has played for no-shows to be penalized.
+   * Whether enough of the field is accounted for -- played or explicitly
+   * DNP'd -- for the *remaining* silent players to be treated as no-shows.
    * Surfaced so the UI can explain why an event's results look provisional.
    */
   thresholdMet: boolean;
@@ -70,19 +73,25 @@ export interface RecomputeOutput {
 /**
  * Recompute every player's place and points for a single event.
  *
- * Ported from `recomputeEventResults_` in the Apps Script `Code.gs`. Two rules
+ * Ported from `recomputeEventResults_` in the Apps Script `Code.gs`, plus one
+ * rule that script never had to express: an admin-asserted DNP. Three rules
  * live here that are not obvious from the output alone:
  *
- * **The half-the-roster threshold.** A player who never posts a score is
- * eventually treated as having played and finished last -- but only once at
- * least half the active roster has recorded a score. Before that, the event is
- * still considered in progress and no-shows are not penalized. Without the
- * threshold, the first player to enter a score would instantly saddle everyone
- * else with a last-place finish.
+ * **The half-the-roster threshold.** A player who never posts a score or an
+ * explicit DNP is eventually treated as having played and finished last --
+ * but only once at least half the active roster is accounted for (scored or
+ * DNP'd). Before that, the event is still considered in progress and silence
+ * is not penalized. Without the threshold, the first player to enter a score
+ * would instantly saddle everyone else with a last-place finish.
  *
- * **Everyone missing shares one place.** All no-shows tie for one place worse
- * than the worst actual score, and all take the points that place is worth.
- * They are not ranked against each other.
+ * **DNP is immediate and sticky.** Unlike the automatic no-show placeholder,
+ * an explicit DNP applies the moment it's entered, regardless of the
+ * threshold, and is never auto-cleared -- it only changes if the admin enters
+ * an actual score or removes it.
+ *
+ * **Everyone missing shares one place.** All no-shows and DNPs tie for one
+ * place worse than the worst actual score, and all take the points that place
+ * is worth. They are not ranked against each other.
  *
  * This function decides; it does not write. The caller persists the result.
  */
@@ -93,10 +102,11 @@ export function recomputeEventResults(input: RecomputeInput): RecomputeOutput {
     (s): s is DomainScore & { trueScore: number } =>
       s.trueScore !== null && s.trueScore !== undefined,
   );
+  const dnp = scores.filter((s) => s.source === 'dnp');
 
   // Nothing to rank yet. Leave the event entirely alone rather than assigning
   // a whole field last place off a single missing entry.
-  if (scored.length === 0) {
+  if (scored.length === 0 && dnp.length === 0) {
     return { played: [], missed: [], clearMissedFor: [], thresholdMet: false };
   }
 
@@ -114,37 +124,54 @@ export function recomputeEventResults(input: RecomputeInput): RecomputeOutput {
     };
   });
 
-  const worstPlace = Math.max(...played.map((r) => r.place));
+  // Everyone not ranked above shares one place, worse than the worst actual
+  // score. If nobody has played at all yet (an event that is DNP so far),
+  // there is no "worst played place" to sit behind, so the shared place is 1st.
+  const worstPlace = played.length > 0 ? Math.max(...played.map((r) => r.place)) : 0;
+  const lastPlace = worstPlace + 1;
+  const lastPlacePoints = pointsForPlace(pointsTable, eventType, lastPlace);
 
-  const scoredPlayerIds = new Set(scored.map((s) => s.playerId));
-  const missingPlayerIds = activePlayerIds.filter(
-    (id) => !scoredPlayerIds.has(id),
-  );
+  // An admin's DNP counts at any point in the event, threshold or not.
+  const dnpResults: ScoreResult[] = dnp.map((s) => ({
+    playerId: s.playerId,
+    netScore: null,
+    place: lastPlace,
+    eventPoints: lastPlacePoints,
+    source: 'dnp' as const,
+  }));
+
+  // Played or explicitly DNP'd -- either way, that player is accounted for
+  // and counts toward the threshold that turns the rest of the roster's
+  // silence into an automatic no-show.
+  const accountedForIds = new Set([
+    ...scored.map((s) => s.playerId),
+    ...dnp.map((s) => s.playerId),
+  ]);
+  const missingPlayerIds = activePlayerIds.filter((id) => !accountedForIds.has(id));
 
   // Strictly "at least half", matching the original `>= length / 2`. With an
-  // odd roster of 9, 5 scores meet the threshold and 4 do not.
+  // odd roster of 9, 5 accounted-for players meet the threshold and 4 do not.
   const thresholdMet =
-    activePlayerIds.length > 0 && scored.length >= activePlayerIds.length / 2;
+    activePlayerIds.length > 0 &&
+    scored.length + dnp.length >= activePlayerIds.length / 2;
 
   if (!thresholdMet || missingPlayerIds.length === 0) {
-    // Any placeholder previously written is now unearned. Name the players
-    // whose rows should be removed.
+    // Any automatic placeholder previously written is now unearned. Name the
+    // players whose 'missed' rows should be removed -- 'dnp' rows are never
+    // named here, since only the admin retires those.
     const existingMissed = scores
       .filter((s) => s.source === 'missed')
       .map((s) => s.playerId);
-    return { played, missed: [], clearMissedFor: existingMissed, thresholdMet };
+    return { played, missed: dnpResults, clearMissedFor: existingMissed, thresholdMet };
   }
-
-  const missedPlace = worstPlace + 1;
-  const missedPoints = pointsForPlace(pointsTable, eventType, missedPlace);
 
   const missed: ScoreResult[] = missingPlayerIds.map((playerId) => ({
     playerId,
     netScore: null,
-    place: missedPlace,
-    eventPoints: missedPoints,
+    place: lastPlace,
+    eventPoints: lastPlacePoints,
     source: 'missed' as const,
   }));
 
-  return { played, missed, clearMissedFor: [], thresholdMet };
+  return { played, missed: [...missed, ...dnpResults], clearMissedFor: [], thresholdMet };
 }

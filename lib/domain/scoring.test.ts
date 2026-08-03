@@ -297,4 +297,77 @@ describe('recomputeEventResults', () => {
     expect(byPlayer.get('retired')!.place).toBe(1);
     expect(byPlayer.get('a')!.place).toBe(2);
   });
+
+  describe('DNP', () => {
+    it('places an explicit DNP last and awards last-place points, even below the no-show threshold', () => {
+      // Only 1 of 6 accounted for -- nowhere near the automatic threshold --
+      // but a DNP applies immediately regardless.
+      const result = recomputeEventResults({
+        eventType: 'event',
+        pointsTable,
+        scores: [score('a', 80), score('d', null, 0, 0, 'dnp')],
+        activePlayerIds: ['a', 'b', 'c', 'd', 'e', 'f'],
+      });
+
+      const dnpResult = result.missed.find((m) => m.playerId === 'd');
+      expect(dnpResult).toBeDefined();
+      expect(dnpResult!.source).toBe('dnp');
+      expect(dnpResult!.place).toBe(2); // worse than a's 1st
+      expect(dnpResult!.eventPoints).toBe(pointsForPlace(pointsTable, 'event', 2));
+      // b, c, e, f are still just silent -- below threshold, not penalized yet.
+      expect(result.missed.map((m) => m.playerId)).toEqual(['d']);
+      expect(result.thresholdMet).toBe(false);
+    });
+
+    it('counts a DNP toward the threshold, so it can tip the rest of a silent roster into automatic no-shows', () => {
+      // 2 played + 1 DNP = 3 of 6 accounted for -- exactly meets the threshold,
+      // even though only 2 people actually posted a score.
+      const result = recomputeEventResults({
+        eventType: 'event',
+        pointsTable,
+        scores: [score('a', 80), score('b', 85), score('c', null, 0, 0, 'dnp')],
+        activePlayerIds: ['a', 'b', 'c', 'd', 'e', 'f'],
+      });
+
+      expect(result.thresholdMet).toBe(true);
+      const byPlayer = new Map(result.missed.map((m) => [m.playerId, m]));
+      expect(byPlayer.get('c')!.source).toBe('dnp');
+      expect(byPlayer.get('d')!.source).toBe('missed');
+      expect(byPlayer.get('e')!.source).toBe('missed');
+      expect(byPlayer.get('f')!.source).toBe('missed');
+      // Everyone who didn't play -- DNP or automatic no-show -- shares 3rd.
+      expect(result.missed.every((m) => m.place === 3)).toBe(true);
+    });
+
+    it('never clears a DNP row, unlike an unearned automatic missed placeholder', () => {
+      // The roster shrank back below threshold, so the automatic 'missed' row
+      // for 'e' is no longer earned -- but 'd's explicit DNP stands regardless.
+      const result = recomputeEventResults({
+        eventType: 'event',
+        pointsTable,
+        scores: [
+          score('a', 80),
+          score('d', null, 0, 0, 'dnp'),
+          score('e', null, 0, 0, 'missed'),
+        ],
+        activePlayerIds: ['a', 'b', 'c', 'd', 'e', 'f'],
+      });
+
+      expect(result.clearMissedFor).toEqual(['e']);
+      expect(result.missed.map((m) => m.playerId)).toEqual(['d']);
+    });
+
+    it('handles an event that is DNP-only, with nobody having played at all', () => {
+      const result = recomputeEventResults({
+        eventType: 'event',
+        pointsTable,
+        scores: [score('a', null, 0, 0, 'dnp')],
+        activePlayerIds: ['a'],
+      });
+
+      expect(result.played).toEqual([]);
+      expect(result.missed[0].place).toBe(1);
+      expect(result.missed[0].eventPoints).toBe(pointsForPlace(pointsTable, 'event', 1));
+    });
+  });
 });

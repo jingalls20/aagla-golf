@@ -19,7 +19,7 @@ export type Database = {
       event_status: 'scheduled' | 'played' | 'cancelled';
       player_status: 'active' | 'inactive';
       member_role: 'owner' | 'admin' | 'member';
-      score_source: 'historical' | 'new' | 'missed';
+      score_source: 'historical' | 'new' | 'missed' | 'dnp';
     };
   };
 };

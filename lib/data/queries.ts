@@ -40,6 +40,8 @@ export interface ScoreRow {
   eventId: string;
   playerId: string;
   playerName: string;
+  playerStatus: 'active' | 'inactive';
+  playerPhotoUrl: string | null;
   trueScore: number | null;
   fsApplied: number | null;
   courseDifferential: number;
@@ -54,6 +56,27 @@ function num(value: unknown): number | null {
   if (value === null || value === undefined || value === '') return null;
   const n = Number(value);
   return Number.isNaN(n) ? null : n;
+}
+
+/**
+ * Player IDs who won a season's Championship event -- 1st place in whichever
+ * event has `eventType: 'championship'`, if it's been played.
+ *
+ * Deliberately independent of season points: the Championship is worth zero
+ * points by design (see `points.ts`), so the points leader and the title
+ * holder are often different people. Both are true at once; this is how the
+ * app answers "who actually won it that year" rather than "who topped the
+ * table." Dense ranking means a tie for 1st returns more than one ID.
+ */
+export function championIdsOf(events: LeagueEvent[], scores: ScoreRow[]): Set<string> {
+  const championshipEventIds = new Set(
+    events.filter((e) => e.eventType === 'championship').map((e) => e.id),
+  );
+  return new Set(
+    scores
+      .filter((s) => championshipEventIds.has(s.eventId) && s.place === 1)
+      .map((s) => s.playerId),
+  );
 }
 
 export async function getLeagues(): Promise<League[]> {
@@ -75,14 +98,38 @@ export async function getLeague(slug: string): Promise<League | null> {
   return (data as unknown as League) ?? null;
 }
 
-export async function getSeasonYears(leagueId: string): Promise<number[]> {
+export interface SeasonInfo {
+  year: number;
+  isCurrent: boolean;
+}
+
+/**
+ * Every season of a league, newest first, with which one is current.
+ *
+ * "Current" is a real column (`seasons.is_current`) rather than "whichever
+ * year is highest" -- a league can create next year's season early while this
+ * year is still being played, and an admin needs a way to say which one the
+ * app should open on. Falls back to the newest season if none is marked yet.
+ */
+export async function getSeasons(leagueId: string): Promise<SeasonInfo[]> {
   const supabase = await createClient();
   const { data } = await supabase
     .from('seasons')
-    .select('year')
+    .select('year, is_current')
     .eq('league_id', leagueId)
     .order('year', { ascending: false });
-  return ((data ?? []) as unknown as { year: number }[]).map((r) => r.year);
+  const rows = ((data ?? []) as unknown as { year: number; is_current: boolean }[]).map(
+    (r) => ({ year: r.year, isCurrent: r.is_current }),
+  );
+  if (rows.length > 0 && !rows.some((r) => r.isCurrent)) {
+    rows[0].isCurrent = true;
+  }
+  return rows;
+}
+
+/** The current season's year, falling back to the newest season if unset. */
+export function currentYearOf(seasons: SeasonInfo[]): number | null {
+  return seasons.find((s) => s.isCurrent)?.year ?? seasons[0]?.year ?? null;
 }
 
 export async function getEvents(leagueId: string, year?: number): Promise<LeagueEvent[]> {
@@ -127,7 +174,7 @@ export async function getSeasonScores(
     .select(
       'id, event_id, player_id, true_score, fs_applied, course_differential, ' +
         'net_score, place, event_points, source, ' +
-        'players!inner(name), events!inner(seasons!inner(year))',
+        'players!inner(name, status, photo_url), events!inner(seasons!inner(year))',
     )
     .eq('league_id', leagueId);
 
@@ -140,12 +187,14 @@ export async function getSeasonScores(
       return y === year;
     })
     .map((r) => {
-      const player = r.players as { name: string } | { name: string }[];
+      const player = playerOf(r.players);
       return {
         id: r.id as string,
         eventId: r.event_id as string,
         playerId: r.player_id as string,
-        playerName: Array.isArray(player) ? player[0].name : player.name,
+        playerName: player.name,
+        playerStatus: player.status,
+        playerPhotoUrl: player.photo_url,
         trueScore: num(r.true_score),
         fsApplied: num(r.fs_applied),
         courseDifferential: num(r.course_differential) ?? 0,
@@ -157,8 +206,25 @@ export async function getSeasonScores(
     });
 }
 
+/** Player fields as they arrive from a `players!inner(...)` embed, which
+ *  PostgREST returns as an object for a to-one join but types as an array. */
+function playerOf(value: unknown): {
+  name: string;
+  status: 'active' | 'inactive';
+  photo_url: string | null;
+} {
+  const p = (Array.isArray(value) ? value[0] : value) as {
+    name: string;
+    status: 'active' | 'inactive';
+    photo_url: string | null;
+  };
+  return p;
+}
+
 export interface StandingWithName extends StandingRow {
   playerName: string;
+  playerStatus: 'active' | 'inactive';
+  playerPhotoUrl: string | null;
   handicap: number | null;
 }
 
@@ -193,6 +259,12 @@ export async function getStandings(
   const nameOf = new Map<string, string>(
     scores.map((s): [string, string] => [s.playerId, s.playerName]),
   );
+  const statusOf = new Map<string, 'active' | 'inactive'>(
+    scores.map((s): [string, 'active' | 'inactive'] => [s.playerId, s.playerStatus]),
+  );
+  const photoOf = new Map<string, string | null>(
+    scores.map((s): [string, string | null] => [s.playerId, s.playerPhotoUrl]),
+  );
   const fsOf = new Map<string, number>(
     handicaps.map((h): [string, number] => [h.playerId, h.fs]),
   );
@@ -200,6 +272,8 @@ export async function getStandings(
   return ranked.map((r) => ({
     ...r,
     playerName: nameOf.get(r.playerId) ?? 'Unknown player',
+    playerStatus: statusOf.get(r.playerId) ?? 'active',
+    playerPhotoUrl: photoOf.get(r.playerId) ?? null,
     handicap: fsOf.get(r.playerId) ?? null,
   }));
 }
@@ -208,6 +282,7 @@ export interface HandicapRow {
   playerId: string;
   playerName: string;
   status: 'active' | 'inactive';
+  photoUrl: string | null;
   fs: number;
   note: string | null;
   isOverride: boolean;
@@ -220,7 +295,9 @@ export async function getHandicaps(
   const supabase = await createClient();
   const { data } = await supabase
     .from('handicaps')
-    .select('fs, note, is_override, players!inner(id, name, status), seasons!inner(year)')
+    .select(
+      'fs, note, is_override, players!inner(id, name, status, photo_url), seasons!inner(year)',
+    )
     .eq('league_id', leagueId);
 
   const rows = (data ?? []) as unknown as Record<string, unknown>[];
@@ -232,13 +309,14 @@ export async function getHandicaps(
     })
     .map((r) => {
       const p = r.players as
-        | { id: string; name: string; status: 'active' | 'inactive' }
-        | { id: string; name: string; status: 'active' | 'inactive' }[];
+        | { id: string; name: string; status: 'active' | 'inactive'; photo_url: string | null }
+        | { id: string; name: string; status: 'active' | 'inactive'; photo_url: string | null }[];
       const player = Array.isArray(p) ? p[0] : p;
       return {
         playerId: player.id,
         playerName: player.name,
         status: player.status,
+        photoUrl: player.photo_url,
         fs: round2(num(r.fs) ?? 0) as number,
         note: (r.note as string | null) ?? null,
         isOverride: Boolean(r.is_override),
@@ -253,7 +331,7 @@ export async function getEventResults(eventId: string): Promise<ScoreRow[]> {
     .from('scores')
     .select(
       'id, event_id, player_id, true_score, fs_applied, course_differential, ' +
-        'net_score, place, event_points, source, players!inner(name)',
+        'net_score, place, event_points, source, players!inner(name, status, photo_url)',
     )
     .eq('event_id', eventId);
 
@@ -261,12 +339,14 @@ export async function getEventResults(eventId: string): Promise<ScoreRow[]> {
 
   return rows
     .map((r) => {
-      const player = r.players as { name: string } | { name: string }[];
+      const player = playerOf(r.players);
       return {
         id: r.id as string,
         eventId: r.event_id as string,
         playerId: r.player_id as string,
-        playerName: Array.isArray(player) ? player[0].name : player.name,
+        playerName: player.name,
+        playerStatus: player.status,
+        playerPhotoUrl: player.photo_url,
         trueScore: num(r.true_score),
         fsApplied: num(r.fs_applied),
         courseDifferential: num(r.course_differential) ?? 0,
@@ -283,6 +363,7 @@ export interface PlayerProfile {
   id: string;
   name: string;
   status: 'active' | 'inactive';
+  photoUrl: string | null;
   firstYear: number | null;
   rounds: {
     year: number;
@@ -306,7 +387,7 @@ export async function getPlayerProfile(
 
   const { data: player } = await supabase
     .from('players')
-    .select('id, name, status, first_year')
+    .select('id, name, status, first_year, photo_url')
     .eq('league_id', leagueId)
     .eq('id', playerId)
     .maybeSingle();
@@ -363,12 +444,14 @@ export async function getPlayerProfile(
     name: string;
     status: 'active' | 'inactive';
     first_year: number | null;
+    photo_url: string | null;
   };
 
   return {
     id: p.id,
     name: p.name,
     status: p.status,
+    photoUrl: p.photo_url,
     firstYear: p.first_year,
     rounds,
     handicapHistory,
@@ -379,7 +462,7 @@ export async function getPlayers(leagueId: string) {
   const supabase = await createClient();
   const { data } = await supabase
     .from('players')
-    .select('id, name, status, first_year')
+    .select('id, name, status, first_year, photo_url')
     .eq('league_id', leagueId)
     .order('name');
   return (data ?? []) as unknown as {
@@ -387,5 +470,6 @@ export async function getPlayers(leagueId: string) {
     name: string;
     status: 'active' | 'inactive';
     first_year: number | null;
+    photo_url: string | null;
   }[];
 }

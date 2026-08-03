@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { getLeagues } from '@/lib/data/queries';
 import { Empty } from '@/components/ui';
+import { AuthBar } from '@/components/auth-bar';
 
 /**
  * Chapter picker.
@@ -15,7 +16,10 @@ export default async function HomePage() {
 
   return (
     <main className="mx-auto max-w-2xl px-4 py-12">
-      <h1 className="text-2xl font-semibold">AAGLA Golf</h1>
+      <div className="flex items-baseline justify-between gap-2">
+        <h1 className="text-2xl font-semibold">AAGLA Golf</h1>
+        <AuthBar />
+      </div>
       <p className="mt-1 text-sm text-slate-500">
         Scores, handicaps and season standings.
       </p>

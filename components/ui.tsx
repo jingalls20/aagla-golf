@@ -1,4 +1,3 @@
-import Link from 'next/link';
 import type { ReactNode } from 'react';
 
 /** Shared presentation primitives, kept in one place so every table on every
@@ -90,36 +89,6 @@ export function Badge({
 
 export function Empty({ children }: { children: ReactNode }) {
   return <p className="py-6 text-center text-sm text-slate-400">{children}</p>;
-}
-
-/** Year selector rendered as links, so it works without JavaScript and each
- *  season is a real, shareable URL. */
-export function YearTabs({
-  years,
-  current,
-  hrefFor,
-}: {
-  years: number[];
-  current: number;
-  hrefFor: (year: number) => string;
-}) {
-  return (
-    <nav className="flex flex-wrap gap-1">
-      {years.map((y) => (
-        <Link
-          key={y}
-          href={hrefFor(y)}
-          className={`rounded-md px-2.5 py-1 text-sm ${
-            y === current
-              ? 'bg-fairway-500 font-medium text-white'
-              : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800'
-          }`}
-        >
-          {y}
-        </Link>
-      ))}
-    </nav>
-  );
 }
 
 /** Formats a score relative to par the way golfers say it: +4, -2, E. */
