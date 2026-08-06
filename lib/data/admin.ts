@@ -39,6 +39,12 @@ export async function isLeagueAdmin(leagueId: string): Promise<boolean> {
   return role === 'owner' || role === 'admin';
 }
 
+/** Only the owner manages who else has admin access -- see lib/actions/members.ts. */
+export async function isLeagueOwner(leagueId: string): Promise<boolean> {
+  const role = await getMembership(leagueId);
+  return role === 'owner';
+}
+
 export interface SeasonRules {
   id: string;
   year: number;
@@ -104,9 +110,12 @@ export async function getEntryHandicaps(args: {
     .select('player_id, fs')
     .eq('season_id', args.seasonId);
   const locked = new Map<string, number>(
+    // Rounded on read for the same reason lockedHandicapFor rounds in
+    // scores.ts: a lock written before whole-stroke rounding was the rule
+    // can still carry a decimal in the database.
     ((lockedRows ?? []) as unknown as { player_id: string; fs: string | number }[]).map((r) => [
       r.player_id,
-      Number(r.fs),
+      Math.round(Number(r.fs)),
     ]),
   );
 

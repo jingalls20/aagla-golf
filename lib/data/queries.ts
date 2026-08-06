@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
-import { computeStandings, round2 } from '@/lib/domain/standings';
-import type { EventType, ScoreSource, StandingRow } from '@/lib/domain/types';
+import { computeStandings } from '@/lib/domain/standings';
+import { computeHandicap } from '@/lib/domain/handicap';
+import type { EventType, HistoricalRound, ScoreSource, StandingRow } from '@/lib/domain/types';
 
 /**
  * Read queries for the league screens.
@@ -284,10 +285,21 @@ export interface HandicapRow {
   status: 'active' | 'inactive';
   photoUrl: string | null;
   fs: number;
-  note: string | null;
   isOverride: boolean;
+  /** The specific prior-season rounds averaged to produce `fs` -- empty for an override. */
+  roundsUsed: { eventName: string | null; trueScore: number }[];
 }
 
+/**
+ * A season's locked handicaps, each with the actual rounds that were
+ * averaged to produce it.
+ *
+ * The `handicaps` table only stores the final figure, not which rounds went
+ * into it, so this re-derives that from the same prior-season scores and the
+ * same `computeHandicap` rule the lock itself used (see `lockedHandicapFor`
+ * in lib/actions/scores.ts) -- read-only, nothing here writes a lock or
+ * changes one.
+ */
 export async function getHandicaps(
   leagueId: string,
   year: number,
@@ -296,30 +308,85 @@ export async function getHandicaps(
   const { data } = await supabase
     .from('handicaps')
     .select(
-      'fs, note, is_override, players!inner(id, name, status, photo_url), seasons!inner(year)',
+      'fs, is_override, players!inner(id, name, status, photo_url), ' +
+        'seasons!inner(year, handicap_best_of, handicap_window_events)',
     )
     .eq('league_id', leagueId);
 
   const rows = (data ?? []) as unknown as Record<string, unknown>[];
+  const filtered = rows.filter((r) => {
+    const s = r.seasons as { year: number } | { year: number }[];
+    return (Array.isArray(s) ? s[0].year : s.year) === year;
+  });
+  if (filtered.length === 0) return [];
 
-  return rows
-    .filter((r) => {
-      const s = r.seasons as { year: number } | { year: number }[];
-      return (Array.isArray(s) ? s[0].year : s.year) === year;
-    })
+  const seasonOf = (value: unknown) => {
+    const s = value as
+      | { year: number; handicap_best_of: number; handicap_window_events: number }
+      | { year: number; handicap_best_of: number; handicap_window_events: number }[];
+    return Array.isArray(s) ? s[0] : s;
+  };
+  const season = seasonOf(filtered[0].seasons);
+  const priorYear = year - 1;
+
+  // playerOf() below only returns name/status/photo_url; pull id separately.
+  const idOf = (value: unknown) => {
+    const p = value as { id: string } | { id: string }[];
+    return Array.isArray(p) ? p[0].id : p.id;
+  };
+  const nonOverridePlayerIds = filtered.filter((r) => !Boolean(r.is_override)).map((r) => idOf(r.players));
+
+  const roundsByPlayer = new Map<string, HistoricalRound[]>();
+  if (nonOverridePlayerIds.length > 0) {
+    const { data: priorScores } = await supabase
+      .from('scores')
+      .select('player_id, true_score, events!inner(name, event_type, sequence, seasons!inner(year))')
+      .eq('league_id', leagueId)
+      .in('player_id', nonOverridePlayerIds);
+    const priorRows = (priorScores ?? []) as unknown as Record<string, unknown>[];
+    for (const r of priorRows) {
+      const ev = r.events as {
+        name: string | null;
+        event_type: EventType;
+        sequence: number;
+        seasons: { year: number } | { year: number }[];
+      };
+      const y = Array.isArray(ev.seasons) ? ev.seasons[0].year : ev.seasons.year;
+      if (y !== priorYear || ev.event_type === 'championship' || r.true_score === null) continue;
+      const pid = r.player_id as string;
+      const list = roundsByPlayer.get(pid) ?? [];
+      list.push({
+        eventId: '',
+        eventName: ev.name,
+        eventType: ev.event_type,
+        sequence: ev.sequence,
+        trueScore: Number(r.true_score),
+      });
+      roundsByPlayer.set(pid, list);
+    }
+  }
+
+  return filtered
     .map((r) => {
-      const p = r.players as
-        | { id: string; name: string; status: 'active' | 'inactive'; photo_url: string | null }
-        | { id: string; name: string; status: 'active' | 'inactive'; photo_url: string | null }[];
-      const player = Array.isArray(p) ? p[0] : p;
+      const player = playerOf(r.players);
+      const playerId = idOf(r.players);
+      const isOverride = Boolean(r.is_override);
+      let roundsUsed: { eventName: string | null; trueScore: number }[] = [];
+      if (!isOverride) {
+        const rounds = roundsByPlayer.get(playerId) ?? [];
+        const result = computeHandicap(rounds, season.handicap_best_of, season.handicap_window_events, priorYear);
+        roundsUsed = result.roundsUsed.map((x) => ({ eventName: x.eventName, trueScore: x.trueScore }));
+      }
       return {
-        playerId: player.id,
+        playerId,
         playerName: player.name,
         status: player.status,
         photoUrl: player.photo_url,
-        fs: round2(num(r.fs) ?? 0) as number,
-        note: (r.note as string | null) ?? null,
-        isOverride: Boolean(r.is_override),
+        // Handicaps are whole strokes; round on every read so a value locked
+        // before this was the rule doesn't keep showing a decimal.
+        fs: Math.round(num(r.fs) ?? 0),
+        isOverride,
+        roundsUsed,
       };
     })
     .sort((a, b) => a.playerName.localeCompare(b.playerName));
@@ -434,7 +501,9 @@ export async function getPlayerProfile(
       const s = r.seasons as { year: number } | { year: number }[];
       return {
         year: Array.isArray(s) ? s[0].year : s.year,
-        fs: round2(num(r.fs) ?? 0) as number,
+        // Handicaps are whole strokes; round on every read so a value locked
+        // before this was the rule doesn't keep showing a decimal.
+        fs: Math.round(num(r.fs) ?? 0),
       };
     })
     .sort((a, b) => a.year - b.year);

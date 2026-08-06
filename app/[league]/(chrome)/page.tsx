@@ -13,6 +13,9 @@ import { Card, Empty, fmt, toPar } from '@/components/ui';
 import { Avatar } from '@/components/avatar';
 import { InactiveToggle } from '@/components/selectors';
 import { SortableTable, type SortableColumn, type SortableRow } from '@/components/sortable-table';
+import { TableHint } from '@/components/table-hint';
+import { championshipHandicap } from '@/lib/domain/handicap';
+import { resolveShowInactive } from '@/lib/prefs';
 import type { ScoreRow } from '@/lib/data/queries';
 import type { ReactNode } from 'react';
 
@@ -25,7 +28,7 @@ export default async function StandingsPage({
 }) {
   const { league: slug } = await params;
   const { showInactive: showInactiveParam } = await searchParams;
-  const showInactive = showInactiveParam === '1';
+  const showInactive = await resolveShowInactive(showInactiveParam);
   const league = await getLeague(slug);
   if (!league) notFound();
 
@@ -45,8 +48,10 @@ export default async function StandingsPage({
 
   const championIds = championIdsOf(events, scores);
 
-  // Player × event grid. Only events that have results get a column.
-  const played = events.filter((e) => scores.some((s) => s.eventId === e.id));
+  // Player × event grid. Every event in the season gets a column, played or
+  // not -- an admin scanning the season wants to see what's still ahead, not
+  // just what's already in the books.
+  const seasonEvents = events;
   const cell = new Map<string, ScoreRow>();
   const playerMeta = new Map<
     string,
@@ -70,60 +75,81 @@ export default async function StandingsPage({
   const standingsColumns: SortableColumn[] = [
     { key: 'rank', label: '#', align: 'right', sortable: true },
     { key: 'player', label: 'Player', sortable: true },
-    { key: 'points', label: 'Points', align: 'right', sortable: true },
+    { key: 'points', label: 'Event Points', align: 'right', sortable: true },
     { key: 'played', label: 'Played', align: 'right', sortable: true },
-    { key: 'handicap', label: 'Handicap', align: 'right', sortable: true },
+    { key: 'championshipStart', label: 'Championship start', align: 'right', sortable: true },
   ];
-  const standingsRows: SortableRow[] = visibleStandings.map((s) => ({
-    key: s.playerId,
-    sortValues: {
-      rank: s.seasonRank,
-      player: s.playerName,
-      points: s.totalPoints,
-      played: s.eventsPlayed,
-      handicap: s.handicap,
-    },
-    cells: {
-      rank: s.seasonRank,
-      player: (
-        <Link
-          href={`/${slug}/players/${s.playerId}`}
-          className="flex items-center gap-2 hover:text-fairway-600 hover:underline"
-        >
-          <Avatar name={s.playerName} photoUrl={s.playerPhotoUrl} />
-          <span>
-            {s.playerName}
-            {championIds.has(s.playerId) ? (
-              <span className="ml-1" title={`${year} Championship winner`}>
-                🏆
-              </span>
-            ) : null}
-            {s.playerStatus === 'inactive' ? (
-              <span className="ml-1.5 align-middle text-[10px] text-slate-400">inactive</span>
-            ) : null}
-          </span>
-        </Link>
-      ),
-      points: fmt(s.totalPoints),
-      played: s.eventsPlayed,
-      handicap: <span className="text-slate-400">{fmt(s.handicap)}</span>,
-    },
-  }));
+  const standingsRows: SortableRow[] = visibleStandings.map((s) => {
+    // What this player would start the Championship round on if the season
+    // ended today: the season leader plays their full handicap, and every
+    // place after that gives up one more stroke -- same rule the
+    // Championship event itself applies (see championshipHandicap). That
+    // function returns strokes in the same sign as a season handicap (higher
+    // is a bigger advantage); a "starting score" reads the opposite way --
+    // strokes already on the board before teeing off -- so it's shown
+    // negated, and same as any relative-to-par figure, is free to land on
+    // either side of zero: a big handicap starts well under (e.g. "-13"), a
+    // player who already gives strokes back can end up starting over
+    // (e.g. "+4") once the stagger takes more from them.
+    const championshipStart = -championshipHandicap(s.handicap ?? 0, s.seasonRank);
+    return {
+      key: s.playerId,
+      sortValues: {
+        rank: s.seasonRank,
+        player: s.playerName,
+        points: s.totalPoints,
+        played: s.eventsPlayed,
+        championshipStart,
+      },
+      cells: {
+        rank: s.seasonRank,
+        player: (
+          <Link
+            href={`/${slug}/players/${s.playerId}`}
+            className="flex items-center gap-2 hover:text-fairway-600 hover:underline"
+          >
+            <Avatar name={s.playerName} photoUrl={s.playerPhotoUrl} />
+            <span>
+              {s.playerName}
+              {s.handicap !== null ? (
+                <span className="ml-1 text-slate-400">({fmt(s.handicap)})</span>
+              ) : null}
+              {championIds.has(s.playerId) ? (
+                <span className="ml-1" title={`${year} Championship winner`}>
+                  🏆
+                </span>
+              ) : null}
+              {s.playerStatus === 'inactive' ? (
+                <span className="ml-1.5 align-middle text-[10px] text-slate-400">inactive</span>
+              ) : null}
+            </span>
+          </Link>
+        ),
+        points: fmt(s.totalPoints),
+        played: s.eventsPlayed,
+        championshipStart: <span className="text-slate-400">{toPar(championshipStart)}</span>,
+      },
+    };
+  });
 
   const gridColumns: SortableColumn[] = [
     { key: 'player', label: 'Player', sortable: true },
-    ...played.map(
+    ...seasonEvents.map(
       (e): SortableColumn => ({
         key: e.id,
+        // Plain text, not a link -- this header doubles as the sort control,
+        // and a nested <a> would hijack the click into a navigation instead
+        // of a sort. The event's own page is still reachable from its rows
+        // elsewhere (Events tab), just not from this column header.
         label: (
-          <Link href={`/${slug}/events?event=${e.id}`} className="hover:underline">
+          <span>
             {e.name ?? `#${e.legacyId ?? e.sequence}`}
             {e.eventType !== 'event' ? (
               <span className="block text-[10px] font-normal normal-case text-slate-400">
                 {e.eventType}
               </span>
             ) : null}
-          </Link>
+          </span>
         ),
         align: 'center',
         sortable: true,
@@ -150,15 +176,16 @@ export default async function StandingsPage({
       ),
     };
     const sortValues: Record<string, string | number | null> = { player: meta.name };
-    for (const e of played) {
+    for (const e of seasonEvents) {
       const s = cell.get(`${playerId}:${e.id}`);
+      const dnp = s?.source === 'missed' || s?.source === 'dnp';
       cells[e.id] = !s ? (
         <span className="text-slate-400">—</span>
       ) : (
-        <span className={s.source === 'missed' || s.source === 'dnp' ? 'text-slate-400' : ''}>
+        <span className={dnp ? 'text-slate-400' : ''}>
           <span className="font-medium">{s.place ?? '—'}</span>
-          <span className="ml-1 text-xs text-slate-400">
-            {s.source === 'missed' || s.source === 'dnp' ? 'DNP' : toPar(s.netScore)}
+          <span className="ml-1 text-[10px] leading-tight text-slate-400">
+            {dnp ? 'DNP' : toPar(s.netScore)} &middot; {fmt(s.eventPoints)}pts
           </span>
         </span>
       );
@@ -177,11 +204,15 @@ export default async function StandingsPage({
       </div>
 
       <Card title={`${year} season standings`}>
-        <p className="mb-3 text-xs text-slate-400">
-          Lowest total wins — winning an event scores zero. Championships are excluded from
-          points, but 🏆 marks that year&rsquo;s Championship winner, wherever they landed in the
-          standings.
-        </p>
+        <TableHint>
+          Lowest total wins — winning an event scores zero. A player&rsquo;s handicap is shown in
+          parentheses next to their name. <strong>Championship start</strong> is where they&rsquo;d
+          begin the Championship round relative to par if the season ended today: the leader keeps
+          their full handicap, and every place after that gives up one more stroke. Like a net
+          score, a big handicap starts well under par, and a small or negative one can start over.
+          Championships are excluded from Event Points, but 🏆 marks that year&rsquo;s Championship
+          winner, wherever they landed in the standings.
+        </TableHint>
         {visibleStandings.length === 0 ? (
           <Empty>No results recorded for {year} yet.</Empty>
         ) : (
@@ -189,13 +220,16 @@ export default async function StandingsPage({
         )}
       </Card>
 
-      <Card title="Every round this season">
-        <p className="mb-3 text-xs text-slate-400">
-          Each cell shows finishing place, then net score. A dash means no round recorded. Click a
-          column header to sort by that event.
-        </p>
-        {played.length === 0 || gridRows.length === 0 ? (
-          <Empty>No events played yet.</Empty>
+      <Card title={`${year} events`}>
+        <TableHint>
+          Every event in the season, played or not. The big number is finishing place; below it,
+          net score relative to par and event points earned. A dash means that round hasn&rsquo;t
+          been recorded yet. Click a column header to sort by that event.
+        </TableHint>
+        {seasonEvents.length === 0 ? (
+          <Empty>No events scheduled for {year} yet.</Empty>
+        ) : gridRows.length === 0 ? (
+          <Empty>No scores recorded for {year} yet.</Empty>
         ) : (
           <SortableTable columns={gridColumns} rows={gridRows} />
         )}

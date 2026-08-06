@@ -34,7 +34,9 @@ export function Th({
   children,
   align = 'left',
 }: {
-  children: ReactNode;
+  // Optional: a header cell can be deliberately empty -- the actions column on
+  // the admin players and seasons tables renders `<Th></Th>` as its spacer.
+  children?: ReactNode;
   align?: 'left' | 'right' | 'center';
 }) {
   // Tailwind scans source for complete class names, so `text-${align}` would
@@ -52,13 +54,16 @@ export function Td({
   children,
   align = 'left',
   muted = false,
+  colSpan,
 }: {
   children: ReactNode;
   align?: 'left' | 'right' | 'center';
   muted?: boolean;
+  colSpan?: number;
 }) {
   return (
     <td
+      colSpan={colSpan}
       className={`border-b border-slate-100 py-2 pr-3 ${ALIGN[align]} dark:border-slate-800/60 ${
         muted ? 'text-slate-400' : ''
       }`}

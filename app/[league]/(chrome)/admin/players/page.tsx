@@ -2,9 +2,10 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getLeague, getPlayers } from '@/lib/data/queries';
 import { isLeagueAdmin } from '@/lib/data/admin';
-import { addPlayer, setPlayerStatus, updatePlayerPhoto } from '@/lib/actions/admin';
+import { addPlayer, setPlayerStatus, updatePlayer } from '@/lib/actions/admin';
 import { Badge, Card, Empty, TableWrap, Th, Td } from '@/components/ui';
 import { Avatar } from '@/components/avatar';
+import { TableHint } from '@/components/table-hint';
 
 export default async function PlayersAdminPage({
   params,
@@ -38,17 +39,21 @@ export default async function PlayersAdminPage({
       </Link>
 
       <Card title="Players">
-        <p className="mb-3 text-xs text-slate-400">
+        <TableHint>
           Active players are who show up for score entry, standings, and handicaps --
           this list isn&rsquo;t scoped to one season, so review it before each new one
           starts. Marking someone inactive doesn&rsquo;t touch their history, it just
-          leaves them off current screens.
-        </p>
+          leaves them off current screens. Edit a name only to fix a typo or spelling --
+          it&rsquo;s how the league tells one player from another across every season on
+          record.
+        </TableHint>
         <TableWrap>
           <thead>
             <tr>
               <Th>Player</Th>
               <Th>Status</Th>
+              <Th>Name</Th>
+              <Th>First year</Th>
               <Th>Photo URL</Th>
               <Th></Th>
             </tr>
@@ -69,17 +74,31 @@ export default async function PlayersAdminPage({
                     <Badge>inactive</Badge>
                   )}
                 </Td>
-                <Td>
-                  <form action={updatePlayerPhoto} className="flex items-center gap-2">
+                <Td colSpan={3}>
+                  <form action={updatePlayer} className="flex flex-wrap items-center gap-2">
                     <input type="hidden" name="leagueId" value={league.id} />
                     <input type="hidden" name="slug" value={slug} />
                     <input type="hidden" name="playerId" value={p.id} />
                     <input
                       type="text"
+                      name="name"
+                      required
+                      defaultValue={p.name}
+                      className="w-32 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs dark:border-slate-800 dark:bg-slate-900"
+                    />
+                    <input
+                      type="number"
+                      name="firstYear"
+                      defaultValue={p.first_year ?? ''}
+                      placeholder="year"
+                      className="w-20 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs dark:border-slate-800 dark:bg-slate-900"
+                    />
+                    <input
+                      type="text"
                       name="photoUrl"
                       defaultValue={p.photo_url ?? ''}
                       placeholder="https://…"
-                      className="w-44 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs dark:border-slate-800 dark:bg-slate-900"
+                      className="w-40 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs dark:border-slate-800 dark:bg-slate-900"
                     />
                     <button
                       type="submit"

@@ -30,7 +30,6 @@ export async function saveEventScores(formData: FormData): Promise<void> {
   const eventId = String(formData.get('eventId') ?? '');
   const slug = String(formData.get('slug') ?? '');
   const year = Number(formData.get('year'));
-  const courseDifferential = Number(formData.get('courseDifferential') ?? 0) || 0;
 
   if (!leagueId || !eventId || !slug) {
     throw new Error('Missing leagueId, eventId, or slug on score entry form.');
@@ -98,6 +97,20 @@ export async function saveEventScores(formData: FormData): Promise<void> {
     redirect(`/${slug}/admin?year=${year}&event=${eventId}`);
   }
 
+  // Course differential, per player rather than event-wide -- most players
+  // play the usual course and stay at 0; a player who played somewhere else
+  // that day gets adjusted individually via `diff_<playerId>`.
+  const diffOf = new Map<string, number>();
+  for (const [key, value] of formData.entries()) {
+    if (!key.startsWith('diff_')) continue;
+    const playerId = key.slice('diff_'.length);
+    const raw = String(value).trim();
+    if (raw === '') continue;
+    const diff = Number(raw);
+    if (Number.isNaN(diff)) continue;
+    diffOf.set(playerId, diff);
+  }
+
   // Standings-to-date, for the Championship's staggered start.
   const seasonRankOf =
     eventType === 'championship' ? await getSeasonRankOf(leagueId, seasonId) : new Map<string, number>();
@@ -121,7 +134,7 @@ export async function saveEventScores(formData: FormData): Promise<void> {
         player_id: entry.playerId,
         true_score: entry.trueScore,
         fs_applied: fsApplied,
-        course_differential: courseDifferential,
+        course_differential: diffOf.get(entry.playerId) ?? 0,
         source: 'new',
       },
       { onConflict: 'event_id,player_id' },
@@ -159,6 +172,66 @@ export async function saveEventScores(formData: FormData): Promise<void> {
 }
 
 /**
+ * Remove one player's score (or DNP) from an event entirely -- for an entry
+ * that was a mistake, not a round that happened and needs correcting (just
+ * save over it for that). Deleting is a plain admin correction with no
+ * self-service equivalent, same as the RLS policy on `scores` already
+ * enforces. Recomputes the event afterward exactly like a save does, since
+ * removing one score can change everyone else's place and points too.
+ */
+export async function clearScore(formData: FormData): Promise<void> {
+  const leagueId = String(formData.get('leagueId') ?? '');
+  const eventId = String(formData.get('eventId') ?? '');
+  const playerId = String(formData.get('playerId') ?? '');
+  const slug = String(formData.get('slug') ?? '');
+  const year = Number(formData.get('year'));
+
+  if (!leagueId || !eventId || !playerId || !slug) {
+    throw new Error('Missing leagueId, eventId, playerId, or slug on the clear-score form.');
+  }
+  if (!(await isLeagueAdmin(leagueId))) {
+    redirect(`/${slug}`);
+  }
+
+  const supabase = await createClient();
+
+  const { data: event } = await supabase
+    .from('events')
+    .select('id, event_type, season_id')
+    .eq('id', eventId)
+    .single();
+  if (!event) throw new Error(`Event ${eventId} not found.`);
+  const eventType = (event as unknown as { event_type: EventType }).event_type;
+  const seasonId = (event as unknown as { season_id: string }).season_id;
+
+  const { data: season } = await supabase
+    .from('seasons')
+    .select('points_table')
+    .eq('id', seasonId)
+    .single();
+  if (!season) throw new Error(`Season ${seasonId} not found.`);
+  const pointsTable = (season as unknown as { points_table: PointsTable }).points_table;
+
+  const { error } = await supabase
+    .from('scores')
+    .delete()
+    .eq('event_id', eventId)
+    .eq('player_id', playerId);
+  if (error) throw new Error(`Clearing score for player ${playerId}: ${error.message}`);
+
+  const { data: activePlayers } = await supabase
+    .from('players')
+    .select('id')
+    .eq('league_id', leagueId)
+    .eq('status', 'active');
+  const activePlayerIds = ((activePlayers ?? []) as unknown as { id: string }[]).map((p) => p.id);
+
+  await recomputeAndPersist({ supabase, leagueId, eventId, eventType, pointsTable, activePlayerIds });
+
+  redirect(`/${slug}/admin?year=${year}&event=${eventId}&saved=1`);
+}
+
+/**
  * The season handicap, locked on first use and held steady after that --
  * same rule the Handicaps screen documents. A Championship round additionally
  * applies the staggered-start reduction on top of the locked figure; the
@@ -185,7 +258,11 @@ async function lockedHandicapFor(args: {
 
   let lockedFs: number;
   if (existing) {
-    lockedFs = Number((existing as unknown as { fs: number | string }).fs);
+    // Round on read too, not just on first computation: a handicap locked
+    // before whole-stroke rounding was the rule still has a decimal sitting
+    // in the database, and this is what keeps every future round for that
+    // player computing off a whole number without needing a migration.
+    lockedFs = Math.round(Number((existing as unknown as { fs: number | string }).fs));
   } else {
     const { data: priorScores } = await supabase
       .from('scores')
@@ -235,7 +312,7 @@ async function lockedHandicapFor(args: {
         .eq('season_id', args.seasonId)
         .eq('player_id', args.playerId)
         .maybeSingle();
-      if (raced) lockedFs = Number((raced as unknown as { fs: number | string }).fs);
+      if (raced) lockedFs = Math.round(Number((raced as unknown as { fs: number | string }).fs));
     }
   }
 

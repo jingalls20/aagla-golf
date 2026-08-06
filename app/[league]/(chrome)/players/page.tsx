@@ -4,6 +4,7 @@ import { getLeague, getPlayers } from '@/lib/data/queries';
 import { Badge, Card, Empty } from '@/components/ui';
 import { Avatar } from '@/components/avatar';
 import { InactiveToggle } from '@/components/selectors';
+import { resolveShowInactive } from '@/lib/prefs';
 
 export default async function PlayersPage({
   params,
@@ -14,7 +15,7 @@ export default async function PlayersPage({
 }) {
   const { league: slug } = await params;
   const { showInactive: showInactiveParam } = await searchParams;
-  const showInactive = showInactiveParam === '1';
+  const showInactive = await resolveShowInactive(showInactiveParam);
   const league = await getLeague(slug);
   if (!league) notFound();
 

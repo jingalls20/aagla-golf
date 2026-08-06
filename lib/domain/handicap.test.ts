@@ -89,16 +89,18 @@ describe('championshipHandicap', () => {
     expect(championshipHandicap(10, 5)).toBe(6);
   });
 
-  it('never reduces a handicap below zero', () => {
-    expect(championshipHandicap(2, 10)).toBe(0);
+  it('allows the reduction to push a handicap negative', () => {
+    // A starting handicap of 2, reduced by 9 strokes (rank 10), ends up
+    // owing 7 -- that's the point of the stagger, not a bug.
+    expect(championshipHandicap(2, 10)).toBe(-7);
   });
 
   it('applies no reduction to a player with no season standing', () => {
-    expect(championshipHandicap(7.5, null)).toBe(7.5);
+    expect(championshipHandicap(7.5, null)).toBe(8);
   });
 
-  it('rounds to two decimals for display', () => {
-    expect(championshipHandicap(10.333, 2)).toBe(9.33);
+  it('rounds to the nearest whole stroke', () => {
+    expect(championshipHandicap(10.333, 2)).toBe(9);
   });
 });
 

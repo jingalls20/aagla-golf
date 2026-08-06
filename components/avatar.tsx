@@ -53,6 +53,7 @@ export function Avatar({
       <img
         src={photoUrl}
         alt={name}
+        referrerPolicy="no-referrer"
         className={`inline-block shrink-0 rounded-full object-cover align-middle ${SIZES[size]}`}
       />
     );

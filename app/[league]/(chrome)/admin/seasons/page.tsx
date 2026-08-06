@@ -5,6 +5,7 @@ import { isLeagueAdmin } from '@/lib/data/admin';
 import { getSeasonsAdmin } from '@/lib/data/seasons';
 import { createSeason, setCurrentSeason } from '@/lib/actions/admin';
 import { Badge, Card, Empty, TableWrap, Th, Td } from '@/components/ui';
+import { TableHint } from '@/components/table-hint';
 
 export default async function SeasonsAdminPage({
   params,
@@ -88,12 +89,12 @@ export default async function SeasonsAdminPage({
       </Card>
 
       <Card title="Create a season">
-        <p className="mb-3 text-xs text-slate-400">
+        <TableHint>
           Starts empty — you&rsquo;ll name and add its events on the next screen. It
           won&rsquo;t appear anywhere in the app as the current season until you make it
           current, so it&rsquo;s safe to build ahead of time while last season is still
           being played.
-        </p>
+        </TableHint>
         <form action={createSeason} className="flex flex-wrap items-end gap-3">
           <input type="hidden" name="leagueId" value={league.id} />
           <input type="hidden" name="slug" value={slug} />

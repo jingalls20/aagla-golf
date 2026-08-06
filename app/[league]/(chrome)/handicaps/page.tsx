@@ -5,6 +5,8 @@ import { Badge, Card, Empty, fmt } from '@/components/ui';
 import { Avatar } from '@/components/avatar';
 import { InactiveToggle, NavSelect } from '@/components/selectors';
 import { SortableTable, type SortableColumn, type SortableRow } from '@/components/sortable-table';
+import { TableHint } from '@/components/table-hint';
+import { resolveShowInactive } from '@/lib/prefs';
 
 export default async function HandicapsPage({
   params,
@@ -15,7 +17,7 @@ export default async function HandicapsPage({
 }) {
   const { league: slug } = await params;
   const { year: yearParam, showInactive: showInactiveParam } = await searchParams;
-  const showInactive = showInactiveParam === '1';
+  const showInactive = await resolveShowInactive(showInactiveParam);
   const league = await getLeague(slug);
   if (!league) notFound();
 
@@ -30,7 +32,7 @@ export default async function HandicapsPage({
   const columns: SortableColumn[] = [
     { key: 'player', label: 'Player', sortable: true },
     { key: 'fs', label: 'Free strokes', align: 'right', sortable: true },
-    { key: 'note', label: 'How it was worked out' },
+    { key: 'events', label: 'Events used' },
   ];
 
   const rows: SortableRow[] = handicaps.map((h) => ({
@@ -47,10 +49,14 @@ export default async function HandicapsPage({
           {h.status === 'inactive' ? <Badge>inactive</Badge> : null}
         </Link>
       ),
-      fs: <span className="font-medium">{fmt(h.fs, 2)}</span>,
-      note: (
+      fs: <span className="font-medium">{fmt(h.fs)}</span>,
+      events: h.isOverride ? (
+        <Badge tone="amber">set by an admin</Badge>
+      ) : h.roundsUsed.length === 0 ? (
+        <span className="text-slate-400">no {year - 1} rounds recorded</span>
+      ) : (
         <span className="text-slate-400">
-          {h.isOverride ? <Badge tone="amber">set by an admin</Badge> : h.note ?? '—'}
+          {h.roundsUsed.map((r) => r.eventName ?? 'unnamed event').join(', ')}
         </span>
       ),
     },
@@ -71,11 +77,11 @@ export default async function HandicapsPage({
       </div>
 
       <Card title={`${year} handicaps`}>
-        <p className="mb-3 text-xs text-slate-400">
+        <TableHint>
           Locked for the season: the average of a player&rsquo;s best 3 true scores from their
-          last 7 Event or Major rounds of the previous year. A negative figure means the
-          player gives strokes back.
-        </p>
+          last 7 Event or Major rounds of the previous year, rounded to the nearest whole
+          stroke. A negative figure means the player gives strokes back.
+        </TableHint>
         {handicaps.length === 0 ? (
           <Empty>No handicaps locked for {year} yet.</Empty>
         ) : (

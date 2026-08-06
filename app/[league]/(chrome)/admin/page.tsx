@@ -9,10 +9,12 @@ import {
   getSeasons,
 } from '@/lib/data/queries';
 import { getEntryHandicaps, getSeasonRow, isLeagueAdmin } from '@/lib/data/admin';
-import { saveEventScores } from '@/lib/actions/scores';
+import { saveEventScores, clearScore } from '@/lib/actions/scores';
 import { Card, Empty, TableWrap, Th, Td, fmt } from '@/components/ui';
 import { NavSelect } from '@/components/selectors';
 import { DnpScoreInput } from '@/components/dnp-score-input';
+import { TableHint } from '@/components/table-hint';
+import { ConfirmSubmitButton } from '@/components/confirm-button';
 
 export default async function AdminPage({
   params,
@@ -59,7 +61,6 @@ export default async function AdminPage({
     .sort((a, b) => a.name.localeCompare(b.name));
 
   const resultOf = new Map(results.map((r) => [r.playerId, r]));
-  const existingDiff = results.find((r) => r.courseDifferential !== 0)?.courseDifferential ?? 0;
 
   // Handicap for every active player, so an admin can check a score nets
   // right before saving it -- the locked season figure where one exists, or
@@ -106,6 +107,9 @@ export default async function AdminPage({
           <Link href={`/${slug}/admin/players`} className="text-slate-400 hover:text-fairway-600">
             Manage players →
           </Link>
+          <Link href={`/${slug}/admin/members`} className="text-slate-400 hover:text-fairway-600">
+            Manage admin access →
+          </Link>
         </div>
       </div>
 
@@ -118,19 +122,23 @@ export default async function AdminPage({
       <Card
         title={`Enter scores — ${selectedEvent.name ?? `Event #${selectedEvent.legacyId ?? selectedEvent.sequence}`}`}
       >
-        <p className="mb-4 text-xs text-slate-400">
+        <TableHint>
           Score is strokes relative to par (e.g. <code>-2</code>, <code>0</code>, <code>5</code>).
-          Leave a player blank to skip them — it won&rsquo;t erase a score they already have. The
-          <strong> Handicap</strong> column shows what gets subtracted before ranking: a locked
+          Leave a player blank to skip them — it won&rsquo;t erase a score they already have. The{' '}
+          <strong>Handicap</strong> column shows what gets subtracted before ranking: a locked
           figure if this player already has a score this season, or a preview of what would lock
           in from their prior season if not — check it against the score you&rsquo;re about to
           enter. It locks automatically the first time you enter a score for them this season,
-          exactly like the Handicaps screen explains, and stays put after that. Check{' '}
+          exactly like the Handicaps screen explains, and stays put after that. <strong>Course
+          diff.</strong> only matters for a player who played a different course than the rest of
+          the field that day — leave it at 0 for everyone playing the usual course. Check{' '}
           <strong>DNP</strong> to record that a player did not play: they&rsquo;re placed last and
           given last place&rsquo;s points immediately, without waiting on anyone else, and it never
           touches their handicap. Saving recomputes place and points for the whole event, including
-          no-show penalties once half the roster has posted a score or a DNP.
-        </p>
+          no-show penalties once half the roster has posted a score or a DNP. Use{' '}
+          <strong>Clear</strong> to remove a score entered by mistake entirely, rather than saving
+          over it.
+        </TableHint>
 
         <form action={saveEventScores} className="space-y-4">
           <input type="hidden" name="leagueId" value={league.id} />
@@ -138,27 +146,16 @@ export default async function AdminPage({
           <input type="hidden" name="slug" value={slug} />
           <input type="hidden" name="year" value={year} />
 
-          <label className="flex max-w-xs items-center gap-2 text-sm">
-            <span className="text-xs font-medium uppercase tracking-wide text-slate-400">
-              Course differential (applies to everyone below)
-            </span>
-            <input
-              type="number"
-              step="any"
-              name="courseDifferential"
-              defaultValue={existingDiff}
-              className="w-20 rounded-md border border-slate-200 bg-white px-2 py-1 text-sm dark:border-slate-800 dark:bg-slate-900"
-            />
-          </label>
-
           <TableWrap>
             <thead>
               <tr>
                 <Th>Player</Th>
                 <Th align="right">Handicap</Th>
+                <Th align="right">Course diff.</Th>
                 <Th align="right">Score</Th>
                 <Th align="right">Current place</Th>
                 <Th align="right">Current points</Th>
+                <Th></Th>
               </tr>
             </thead>
             <tbody>
@@ -171,7 +168,7 @@ export default async function AdminPage({
                     <Td align="right" muted>
                       {handicap ? (
                         <>
-                          {fmt(handicap.fs, 2)}
+                          {fmt(handicap.fs)}
                           {!handicap.locked ? (
                             <span className="ml-1 text-[10px] text-slate-400">(projected)</span>
                           ) : null}
@@ -179,6 +176,16 @@ export default async function AdminPage({
                       ) : (
                         '—'
                       )}
+                    </Td>
+                    <Td align="right">
+                      <input
+                        type="number"
+                        step="any"
+                        name={`diff_${p.id}`}
+                        defaultValue={existing?.courseDifferential || ''}
+                        placeholder="0"
+                        className="w-16 rounded-md border border-slate-200 bg-white px-2 py-1 text-right text-sm dark:border-slate-800 dark:bg-slate-900"
+                      />
                     </Td>
                     <Td align="right">
                       <DnpScoreInput
@@ -196,6 +203,26 @@ export default async function AdminPage({
                     </Td>
                     <Td align="right" muted>
                       {existing?.eventPoints ?? '—'}
+                    </Td>
+                    <Td align="right">
+                      {existing ? (
+                        // Routed via formAction, not a nested <form> -- this
+                        // row lives inside the score-entry form already, and
+                        // HTML doesn't allow a <form> inside a <form>. The
+                        // name/value pair below is how clearScore learns
+                        // which player, since it isn't a dedicated hidden
+                        // input; leagueId/eventId/slug/year ride along on
+                        // the enclosing form's own hidden inputs.
+                        <ConfirmSubmitButton
+                          formAction={clearScore}
+                          name="playerId"
+                          value={p.id}
+                          confirmText={`Clear ${p.name}'s entry for this event? This removes it entirely, not just its score.`}
+                          className="text-xs text-slate-400 hover:text-red-600"
+                        >
+                          Clear
+                        </ConfirmSubmitButton>
+                      ) : null}
                     </Td>
                   </tr>
                 );

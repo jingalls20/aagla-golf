@@ -50,8 +50,15 @@ export function NavSelect({
 }
 
 /**
- * Show/hide-inactive-players toggle, carried in the `showInactive` URL
- * search param so it's shareable and survives navigation between tabs.
+ * Show/hide-inactive-players toggle.
+ *
+ * Sticky across tabs and dropdown changes: every page that reads this falls
+ * back to a `showInactive` cookie whenever the URL doesn't say one way or the
+ * other (see each page's `resolveShowInactive`), and the nav tabs / season
+ * dropdowns never carry this param themselves -- they don't need to, the
+ * cookie already speaks for them. The current page's own URL still gets an
+ * explicit `1` or `0` on toggle (never just deleted) so a shared/bookmarked
+ * link is unambiguous even if the visitor's cookie disagrees.
  */
 export function InactiveToggle({ show }: { show: boolean }) {
   const router = useRouter();
@@ -59,14 +66,13 @@ export function InactiveToggle({ show }: { show: boolean }) {
   const searchParams = useSearchParams();
 
   function toggle() {
+    const next = !show;
+    document.cookie = next
+      ? 'showInactive=1; path=/; max-age=31536000'
+      : 'showInactive=0; path=/; max-age=31536000';
     const params = new URLSearchParams(searchParams.toString());
-    if (show) {
-      params.delete('showInactive');
-    } else {
-      params.set('showInactive', '1');
-    }
-    const qs = params.toString();
-    router.push(qs ? `${pathname}?${qs}` : pathname);
+    params.set('showInactive', next ? '1' : '0');
+    router.push(`${pathname}?${params.toString()}`);
   }
 
   return (

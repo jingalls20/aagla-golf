@@ -233,25 +233,176 @@ export async function addPlayer(formData: FormData): Promise<void> {
   redirect(`/${slug}/admin/players`);
 }
 
-/** A manual override/correction for a player's photo -- clear the field to remove one. */
-export async function updatePlayerPhoto(formData: FormData): Promise<void> {
+/**
+ * Full edit of a player's own record -- name, first year, and photo, all in
+ * one form. Separate from `setPlayerStatus` because status is a one-click
+ * toggle used constantly (getting ready for a new season); these fields
+ * change rarely, so they get one deliberate "Save" instead.
+ */
+export async function updatePlayer(formData: FormData): Promise<void> {
   const leagueId = String(formData.get('leagueId') ?? '');
   const slug = String(formData.get('slug') ?? '');
   const playerId = String(formData.get('playerId') ?? '');
+  const name = String(formData.get('name') ?? '').trim();
+  const firstYearRaw = String(formData.get('firstYear') ?? '').trim();
   const photoUrlRaw = String(formData.get('photoUrl') ?? '').trim();
-  if (!leagueId || !slug || !playerId) {
-    throw new Error('Missing leagueId, slug, or playerId on the player-photo form.');
+  if (!leagueId || !slug || !playerId || !name) {
+    throw new Error('Missing leagueId, slug, playerId, or name on the player-edit form.');
   }
   await requireAdmin(leagueId, slug);
 
+  const firstYear = firstYearRaw ? Number(firstYearRaw) : null;
   const photoUrl = photoUrlRaw === '' ? null : photoUrlRaw;
   if (photoUrl !== null && !/^https?:\/\//.test(photoUrl)) {
     throw new Error('Photo URL must start with http:// or https://.');
   }
 
   const supabase = await createClient();
-  const { error } = await supabase.from('players').update({ photo_url: photoUrl }).eq('id', playerId);
-  if (error) throw new Error(`Updating photo for player ${playerId}: ${error.message}`);
+  const { error } = await supabase
+    .from('players')
+    .update({
+      name,
+      first_year: firstYear !== null && Number.isFinite(firstYear) ? firstYear : null,
+      photo_url: photoUrl,
+    })
+    .eq('id', playerId);
+  if (error) throw new Error(`Updating player ${playerId}: ${error.message}`);
 
   redirect(`/${slug}/admin/players`);
+}
+
+/**
+ * Correct any of an event's own fields after the fact -- name, type, date,
+ * course, or its sequence within the season. `setEventStatus`'s job (played /
+ * scheduled / cancelled) is folded in here too, so one form covers everything
+ * about the event except its scores.
+ */
+export async function updateEvent(formData: FormData): Promise<void> {
+  const leagueId = String(formData.get('leagueId') ?? '');
+  const slug = String(formData.get('slug') ?? '');
+  const seasonId = String(formData.get('seasonId') ?? '');
+  const eventId = String(formData.get('eventId') ?? '');
+  const name = String(formData.get('name') ?? '').trim();
+  const eventTypeRaw = String(formData.get('eventType') ?? 'event');
+  const eventType: EventType =
+    eventTypeRaw === 'major' || eventTypeRaw === 'championship' ? eventTypeRaw : 'event';
+  const eventDate = String(formData.get('eventDate') ?? '').trim() || null;
+  const course = String(formData.get('course') ?? '').trim() || null;
+  const sequenceRaw = Number(formData.get('sequence'));
+  const status = String(formData.get('status') ?? 'scheduled');
+  if (
+    !leagueId ||
+    !slug ||
+    !seasonId ||
+    !eventId ||
+    !Number.isFinite(sequenceRaw) ||
+    !['scheduled', 'played', 'cancelled'].includes(status)
+  ) {
+    throw new Error('Missing or invalid fields on the event-edit form.');
+  }
+  await requireAdmin(leagueId, slug);
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from('events')
+    .update({
+      name: name || null,
+      event_type: eventType,
+      event_date: eventDate,
+      course,
+      sequence: sequenceRaw,
+      status,
+    })
+    .eq('id', eventId);
+  if (error) throw new Error(`Updating event ${eventId}: ${error.message}`);
+
+  redirect(`/${slug}/admin/seasons/${seasonId}`);
+}
+
+/**
+ * Remove an event entirely -- a duplicate, a test row, one that should never
+ * have been added. Its scores go with it (`scores.event_id` cascades), so
+ * this is meant for a mistake caught early, not for erasing a round that
+ * actually happened and was counted.
+ */
+export async function deleteEvent(formData: FormData): Promise<void> {
+  const leagueId = String(formData.get('leagueId') ?? '');
+  const slug = String(formData.get('slug') ?? '');
+  const seasonId = String(formData.get('seasonId') ?? '');
+  const eventId = String(formData.get('eventId') ?? '');
+  if (!leagueId || !slug || !seasonId || !eventId) {
+    throw new Error('Missing leagueId, slug, seasonId, or eventId on the delete-event form.');
+  }
+  await requireAdmin(leagueId, slug);
+
+  const supabase = await createClient();
+  const { error } = await supabase.from('events').delete().eq('id', eventId);
+  if (error) throw new Error(`Deleting event ${eventId}: ${error.message}`);
+
+  redirect(`/${slug}/admin/seasons/${seasonId}`);
+}
+
+/**
+ * Adjust a season's handicap rule after it's already been created. Only ever
+ * touches `seasons`, never rewrites a handicap that's already locked -- a
+ * player locked under the old rule keeps their locked figure, the new rule
+ * only governs whoever locks in after this changes.
+ */
+export async function updateSeasonRules(formData: FormData): Promise<void> {
+  const leagueId = String(formData.get('leagueId') ?? '');
+  const slug = String(formData.get('slug') ?? '');
+  const seasonId = String(formData.get('seasonId') ?? '');
+  const handicapBestOf = Number(formData.get('handicapBestOf'));
+  const handicapWindowEvents = Number(formData.get('handicapWindowEvents'));
+  if (
+    !leagueId ||
+    !slug ||
+    !seasonId ||
+    !Number.isFinite(handicapBestOf) ||
+    handicapBestOf < 1 ||
+    !Number.isFinite(handicapWindowEvents) ||
+    handicapWindowEvents < 1
+  ) {
+    throw new Error('Missing or invalid fields on the season-rules form.');
+  }
+  await requireAdmin(leagueId, slug);
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from('seasons')
+    .update({ handicap_best_of: handicapBestOf, handicap_window_events: handicapWindowEvents })
+    .eq('id', seasonId);
+  if (error) throw new Error(`Updating season rules: ${error.message}`);
+
+  redirect(`/${slug}/admin/seasons/${seasonId}`);
+}
+
+/**
+ * Remove a season outright -- for the empty one created by mistake (wrong
+ * year, a duplicate), not for a season with real history in it. Guarded to
+ * only ever delete a season with zero events, so there's no path from this
+ * button to losing recorded results.
+ */
+export async function deleteSeason(formData: FormData): Promise<void> {
+  const leagueId = String(formData.get('leagueId') ?? '');
+  const slug = String(formData.get('slug') ?? '');
+  const seasonId = String(formData.get('seasonId') ?? '');
+  if (!leagueId || !slug || !seasonId) {
+    throw new Error('Missing leagueId, slug, or seasonId on the delete-season form.');
+  }
+  await requireAdmin(leagueId, slug);
+
+  const supabase = await createClient();
+  const { count } = await supabase
+    .from('events')
+    .select('id', { count: 'exact', head: true })
+    .eq('season_id', seasonId);
+  if ((count ?? 0) > 0) {
+    throw new Error('This season has events in it -- remove them first, or this would delete their scores too.');
+  }
+
+  const { error } = await supabase.from('seasons').delete().eq('id', seasonId);
+  if (error) throw new Error(`Deleting season: ${error.message}`);
+
+  redirect(`/${slug}/admin/seasons`);
 }
