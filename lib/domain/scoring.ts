@@ -173,5 +173,10 @@ export function recomputeEventResults(input: RecomputeInput): RecomputeOutput {
     source: 'missed' as const,
   }));
 
-  return { played, missed: [...missed, ...dnpResults], clearMissedFor: [], thresholdMet };
+  return {
+    played,
+    missed: [...missed, ...dnpResults],
+    clearMissedFor: [],
+    thresholdMet,
+  };
 }

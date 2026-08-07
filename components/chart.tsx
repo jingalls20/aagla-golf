@@ -21,7 +21,9 @@ export function LineChart({
   label?: string;
 }) {
   if (points.length === 0) {
-    return <p className="py-6 text-center text-sm text-slate-400">Not enough data yet.</p>;
+    return (
+      <p className="py-6 text-center text-sm text-slate-400">Not enough data yet.</p>
+    );
   }
 
   const w = 640;
@@ -42,7 +44,9 @@ export function LineChart({
     return pad + flipped * (height - pad * 2);
   };
 
-  const path = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${sx(i)},${sy(p.y)}`).join(' ');
+  const path = points
+    .map((p, i) => `${i === 0 ? 'M' : 'L'}${sx(i)},${sy(p.y)}`)
+    .join(' ');
 
   return (
     <svg
@@ -65,7 +69,13 @@ export function LineChart({
           />
         );
       })}
-      <path d={path} fill="none" stroke={color} strokeWidth={2} strokeLinejoin="round" />
+      <path
+        d={path}
+        fill="none"
+        stroke={color}
+        strokeWidth={2}
+        strokeLinejoin="round"
+      />
       {points.map((p, i) => (
         <circle key={i} cx={sx(i)} cy={sy(p.y)} r={3.5} fill={color}>
           <title>{`${p.label}: ${p.y}`}</title>

@@ -60,19 +60,35 @@ export default async function BoardPage({
           <table className="w-full border-collapse text-sm">
             <thead>
               <tr className="text-xs uppercase tracking-wide text-slate-500">
-                <th className="border-b border-slate-200 pb-1 text-left dark:border-slate-800">#</th>
-                <th className="border-b border-slate-200 pb-1 text-left dark:border-slate-800">Player</th>
-                <th className="border-b border-slate-200 pb-1 text-right dark:border-slate-800">Points</th>
-                <th className="border-b border-slate-200 pb-1 text-right dark:border-slate-800">Played</th>
+                <th className="border-b border-slate-200 pb-1 text-left dark:border-slate-800">
+                  #
+                </th>
+                <th className="border-b border-slate-200 pb-1 text-left dark:border-slate-800">
+                  Player
+                </th>
+                <th className="border-b border-slate-200 pb-1 text-right dark:border-slate-800">
+                  Points
+                </th>
+                <th className="border-b border-slate-200 pb-1 text-right dark:border-slate-800">
+                  Played
+                </th>
               </tr>
             </thead>
             <tbody>
               {standings.map((s) => (
                 <tr key={s.playerId}>
-                  <td className="border-b border-slate-100 py-1 dark:border-slate-800/60">{s.seasonRank}</td>
-                  <td className="border-b border-slate-100 py-1 dark:border-slate-800/60">{s.playerName}</td>
-                  <td className="border-b border-slate-100 py-1 text-right dark:border-slate-800/60">{fmt(s.totalPoints)}</td>
-                  <td className="border-b border-slate-100 py-1 text-right dark:border-slate-800/60">{s.eventsPlayed}</td>
+                  <td className="border-b border-slate-100 py-1 dark:border-slate-800/60">
+                    {s.seasonRank}
+                  </td>
+                  <td className="border-b border-slate-100 py-1 dark:border-slate-800/60">
+                    {s.playerName}
+                  </td>
+                  <td className="border-b border-slate-100 py-1 text-right dark:border-slate-800/60">
+                    {fmt(s.totalPoints)}
+                  </td>
+                  <td className="border-b border-slate-100 py-1 text-right dark:border-slate-800/60">
+                    {s.eventsPlayed}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -86,15 +102,23 @@ export default async function BoardPage({
           <table className="w-full border-collapse text-sm">
             <thead>
               <tr className="text-xs uppercase tracking-wide text-slate-500">
-                <th className="border-b border-slate-200 pb-1 text-left dark:border-slate-800">Player</th>
-                <th className="border-b border-slate-200 pb-1 text-right dark:border-slate-800">Free strokes</th>
+                <th className="border-b border-slate-200 pb-1 text-left dark:border-slate-800">
+                  Player
+                </th>
+                <th className="border-b border-slate-200 pb-1 text-right dark:border-slate-800">
+                  Free strokes
+                </th>
               </tr>
             </thead>
             <tbody>
               {active.map((h) => (
                 <tr key={h.playerId}>
-                  <td className="border-b border-slate-100 py-1 dark:border-slate-800/60">{h.playerName}</td>
-                  <td className="border-b border-slate-100 py-1 text-right dark:border-slate-800/60">{fmt(h.fs, 2)}</td>
+                  <td className="border-b border-slate-100 py-1 dark:border-slate-800/60">
+                    {h.playerName}
+                  </td>
+                  <td className="border-b border-slate-100 py-1 text-right dark:border-slate-800/60">
+                    {fmt(h.fs, 2)}
+                  </td>
                 </tr>
               ))}
             </tbody>

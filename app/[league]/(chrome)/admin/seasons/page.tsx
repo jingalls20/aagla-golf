@@ -99,7 +99,9 @@ export default async function SeasonsAdminPage({
           <input type="hidden" name="leagueId" value={league.id} />
           <input type="hidden" name="slug" value={slug} />
           <label className="flex flex-col text-xs">
-            <span className="mb-1 font-medium uppercase tracking-wide text-slate-400">Year</span>
+            <span className="mb-1 font-medium uppercase tracking-wide text-slate-400">
+              Year
+            </span>
             <input
               type="number"
               name="year"

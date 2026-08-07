@@ -42,9 +42,13 @@ export default async function AdminPage({
   if (seasons.length === 0) return <Empty>No seasons yet.</Empty>;
   const years = seasons.map((s) => s.year);
   const year =
-    yearParam && years.includes(Number(yearParam)) ? Number(yearParam) : (currentYearOf(seasons) as number);
+    yearParam && years.includes(Number(yearParam))
+      ? Number(yearParam)
+      : (currentYearOf(seasons) as number);
 
-  const allEvents = (await getEvents(league.id, year)).sort((a, b) => a.sequence - b.sequence);
+  const allEvents = (await getEvents(league.id, year)).sort(
+    (a, b) => a.sequence - b.sequence,
+  );
   if (allEvents.length === 0) return <Empty>No events in {year} yet.</Empty>;
 
   const selectedEvent =
@@ -86,7 +90,12 @@ export default async function AdminPage({
             label="Season"
             value={String(year)}
             options={years.map((y) => ({ value: String(y), label: String(y) }))}
-            hrefs={Object.fromEntries(years.map((y): [string, string] => [String(y), `/${slug}/admin?year=${y}`]))}
+            hrefs={Object.fromEntries(
+              years.map((y): [string, string] => [
+                String(y),
+                `/${slug}/admin?year=${y}`,
+              ]),
+            )}
           />
           <NavSelect
             label="Event"
@@ -96,18 +105,30 @@ export default async function AdminPage({
               label: e.name ?? `Event #${e.legacyId ?? e.sequence}`,
             }))}
             hrefs={Object.fromEntries(
-              allEvents.map((e): [string, string] => [e.id, `/${slug}/admin?year=${year}&event=${e.id}`]),
+              allEvents.map((e): [string, string] => [
+                e.id,
+                `/${slug}/admin?year=${year}&event=${e.id}`,
+              ]),
             )}
           />
         </div>
         <div className="flex items-center gap-3 text-xs">
-          <Link href={`/${slug}/admin/seasons`} className="text-slate-400 hover:text-fairway-600">
+          <Link
+            href={`/${slug}/admin/seasons`}
+            className="text-slate-400 hover:text-fairway-600"
+          >
             Manage seasons →
           </Link>
-          <Link href={`/${slug}/admin/players`} className="text-slate-400 hover:text-fairway-600">
+          <Link
+            href={`/${slug}/admin/players`}
+            className="text-slate-400 hover:text-fairway-600"
+          >
             Manage players →
           </Link>
-          <Link href={`/${slug}/admin/members`} className="text-slate-400 hover:text-fairway-600">
+          <Link
+            href={`/${slug}/admin/members`}
+            className="text-slate-400 hover:text-fairway-600"
+          >
             Manage admin access →
           </Link>
         </div>
@@ -123,21 +144,23 @@ export default async function AdminPage({
         title={`Enter scores — ${selectedEvent.name ?? `Event #${selectedEvent.legacyId ?? selectedEvent.sequence}`}`}
       >
         <TableHint>
-          Score is strokes relative to par (e.g. <code>-2</code>, <code>0</code>, <code>5</code>).
-          Leave a player blank to skip them — it won&rsquo;t erase a score they already have. The{' '}
-          <strong>Handicap</strong> column shows what gets subtracted before ranking: a locked
-          figure if this player already has a score this season, or a preview of what would lock
-          in from their prior season if not — check it against the score you&rsquo;re about to
-          enter. It locks automatically the first time you enter a score for them this season,
-          exactly like the Handicaps screen explains, and stays put after that. <strong>Course
-          diff.</strong> only matters for a player who played a different course than the rest of
-          the field that day — leave it at 0 for everyone playing the usual course. Check{' '}
-          <strong>DNP</strong> to record that a player did not play: they&rsquo;re placed last and
-          given last place&rsquo;s points immediately, without waiting on anyone else, and it never
-          touches their handicap. Saving recomputes place and points for the whole event, including
+          Score is strokes relative to par (e.g. <code>-2</code>, <code>0</code>,{' '}
+          <code>5</code>). Leave a player blank to skip them — it won&rsquo;t erase a
+          score they already have. The <strong>Handicap</strong> column shows what gets
+          subtracted before ranking: a locked figure if this player already has a score
+          this season, or a preview of what would lock in from their prior season if not
+          — check it against the score you&rsquo;re about to enter. It locks
+          automatically the first time you enter a score for them this season, exactly
+          like the Handicaps screen explains, and stays put after that.{' '}
+          <strong>Course diff.</strong> only matters for a player who played a different
+          course than the rest of the field that day — leave it at 0 for everyone
+          playing the usual course. Check <strong>DNP</strong> to record that a player
+          did not play: they&rsquo;re placed last and given last place&rsquo;s points
+          immediately, without waiting on anyone else, and it never touches their
+          handicap. Saving recomputes place and points for the whole event, including
           no-show penalties once half the roster has posted a score or a DNP. Use{' '}
-          <strong>Clear</strong> to remove a score entered by mistake entirely, rather than saving
-          over it.
+          <strong>Clear</strong> to remove a score entered by mistake entirely, rather
+          than saving over it.
         </TableHint>
 
         <form action={saveEventScores} className="space-y-4">
@@ -170,7 +193,9 @@ export default async function AdminPage({
                         <>
                           {fmt(handicap.fs)}
                           {!handicap.locked ? (
-                            <span className="ml-1 text-[10px] text-slate-400">(projected)</span>
+                            <span className="ml-1 text-[10px] text-slate-400">
+                              (projected)
+                            </span>
                           ) : null}
                         </>
                       ) : (

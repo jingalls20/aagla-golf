@@ -40,7 +40,7 @@ scripts/              one-off and maintenance scripts
 
 ### The one thing worth understanding
 
-Everything the league considers a *rule* — how a field is placed, how points are
+Everything the league considers a _rule_ — how a field is placed, how points are
 awarded, how a handicap is calculated — lives in `lib/domain/` as pure
 functions. No database access, no `fetch`, no clock, no randomness. Data comes
 in as arguments, decisions come out as return values, and the caller does the

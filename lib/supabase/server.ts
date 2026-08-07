@@ -32,29 +32,25 @@ type CookieToSet = { name: string; value: string; options?: Record<string, unkno
 export async function createClient() {
   const cookieStore = await cookies();
 
-  return createServerClient(
-    SUPABASE_URL,
-    SUPABASE_ANON_KEY,
-    {
-      cookies: {
-        getAll() {
-          return cookieStore.getAll();
-        },
-        setAll(cookiesToSet: CookieToSet[]) {
-          try {
-            for (const { name, value, options } of cookiesToSet) {
-              // See the note in middleware.ts on this cast.
-              cookieStore.set(name, value, options as never);
-            }
-          } catch {
-            // Server Components cannot set cookies. That is fine here: the
-            // middleware refreshes the session on every request, so a failure
-            // to write back from a render is harmless.
+  return createServerClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    cookies: {
+      getAll() {
+        return cookieStore.getAll();
+      },
+      setAll(cookiesToSet: CookieToSet[]) {
+        try {
+          for (const { name, value, options } of cookiesToSet) {
+            // See the note in middleware.ts on this cast.
+            cookieStore.set(name, value, options as never);
           }
-        },
+        } catch {
+          // Server Components cannot set cookies. That is fine here: the
+          // middleware refreshes the session on every request, so a failure
+          // to write back from a render is harmless.
+        }
       },
     },
-  );
+  });
 }
 
 /**

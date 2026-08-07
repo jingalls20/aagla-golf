@@ -3,7 +3,13 @@ import { notFound } from 'next/navigation';
 import { getLeague } from '@/lib/data/queries';
 import { isLeagueAdmin } from '@/lib/data/admin';
 import { getEventsForSeason, getSeasonsAdmin } from '@/lib/data/seasons';
-import { addEvents, deleteEvent, deleteSeason, updateEvent, updateSeasonRules } from '@/lib/actions/admin';
+import {
+  addEvents,
+  deleteEvent,
+  deleteSeason,
+  updateEvent,
+  updateSeasonRules,
+} from '@/lib/actions/admin';
 import { Badge, Card, Empty, TableWrap, Th, Td } from '@/components/ui';
 import { AddEventsForm } from '@/components/add-events-form';
 import { TableHint } from '@/components/table-hint';
@@ -49,7 +55,8 @@ export default async function SeasonEventsPage({
       <Card
         title={
           <>
-            {season.year} events {season.isCurrent ? <Badge tone="green">current</Badge> : null}
+            {season.year} events{' '}
+            {season.isCurrent ? <Badge tone="green">current</Badge> : null}
           </>
         }
       >
@@ -63,10 +70,10 @@ export default async function SeasonEventsPage({
           <Empty>No events yet — add some below.</Empty>
         ) : (
           <TableHint>
-            Edit any field and Save to correct it -- a mistyped name, a wrong date, or the
-            order events play in. Delete removes an event and every score recorded for
-            it, so it&rsquo;s meant for one added by mistake, not a round that actually
-            happened.
+            Edit any field and Save to correct it -- a mistyped name, a wrong date, or
+            the order events play in. Delete removes an event and every score recorded
+            for it, so it&rsquo;s meant for one added by mistake, not a round that
+            actually happened.
           </TableHint>
         )}
 
@@ -194,8 +201,8 @@ export default async function SeasonEventsPage({
       <Card title="Add events">
         <TableHint>
           Name each event and pick its type. A Championship plays off a staggered
-          handicap and never adds season points, so it&rsquo;s normally the last event of
-          the year. Date and course are optional. New events are sequenced after
+          handicap and never adds season points, so it&rsquo;s normally the last event
+          of the year. Date and course are optional. New events are sequenced after
           whatever&rsquo;s already in this season, in the order you add them here. Once
           you enter a score for an event, it&rsquo;s automatically marked played.
         </TableHint>
@@ -215,10 +222,10 @@ export default async function SeasonEventsPage({
 
       <Card title="Handicap rule">
         <TableHint>
-          Average of a player&rsquo;s best <strong>N</strong> true scores from their last{' '}
-          <strong>M</strong> Event or Major rounds of the previous season. Changing this
-          only affects players who lock their {season.year} handicap after the change --
-          anyone already locked keeps the figure they got under the old rule.
+          Average of a player&rsquo;s best <strong>N</strong> true scores from their
+          last <strong>M</strong> Event or Major rounds of the previous season. Changing
+          this only affects players who lock their {season.year} handicap after the
+          change -- anyone already locked keeps the figure they got under the old rule.
         </TableHint>
         <form action={updateSeasonRules} className="flex flex-wrap items-end gap-3">
           <input type="hidden" name="leagueId" value={league.id} />

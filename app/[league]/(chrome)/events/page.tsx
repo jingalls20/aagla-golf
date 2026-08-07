@@ -4,7 +4,11 @@ import { getEventResults, getEvents, getLeague } from '@/lib/data/queries';
 import { Badge, Card, Empty, fmt, toPar } from '@/components/ui';
 import { Avatar } from '@/components/avatar';
 import { NavSelect } from '@/components/selectors';
-import { SortableTable, type SortableColumn, type SortableRow } from '@/components/sortable-table';
+import {
+  SortableTable,
+  type SortableColumn,
+  type SortableRow,
+} from '@/components/sortable-table';
 
 export default async function EventsPage({
   params,
@@ -31,7 +35,10 @@ export default async function EventsPage({
     allEvents.find((e) => e.id === eventParam) ??
     allEvents.find((e) => e.status === 'played') ??
     allEvents[0];
-  const year = yearParam && years.includes(Number(yearParam)) ? Number(yearParam) : defaultEvent.year;
+  const year =
+    yearParam && years.includes(Number(yearParam))
+      ? Number(yearParam)
+      : defaultEvent.year;
 
   const eventsInYear = allEvents.filter((e) => e.year === year);
   const selected =
@@ -71,7 +78,9 @@ export default async function EventsPage({
         >
           <Avatar name={r.playerName} photoUrl={r.playerPhotoUrl} />
           <span>{r.playerName}</span>
-          {r.source === 'missed' || r.source === 'dnp' ? <Badge>did not play</Badge> : null}
+          {r.source === 'missed' || r.source === 'dnp' ? (
+            <Badge>did not play</Badge>
+          ) : null}
         </Link>
       ),
       score: toPar(r.trueScore),
@@ -94,7 +103,10 @@ export default async function EventsPage({
           value={String(year)}
           options={years.map((y) => ({ value: String(y), label: String(y) }))}
           hrefs={Object.fromEntries(
-            years.map((y): [string, string] => [String(y), `/${slug}/events?year=${y}`]),
+            years.map((y): [string, string] => [
+              String(y),
+              `/${slug}/events?year=${y}`,
+            ]),
           )}
         />
         <NavSelect

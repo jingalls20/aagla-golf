@@ -65,11 +65,16 @@ export async function updateMemberRole(formData: FormData): Promise<void> {
   if (user && user.id === targetUserId) {
     // Changing your own role from this screen risks locking yourself out with
     // no one left to undo it -- the owner stays the owner here.
-    redirect(`/${slug}/admin/members?error=${encodeURIComponent("You can't change your own role.")}`);
+    redirect(
+      `/${slug}/admin/members?error=${encodeURIComponent("You can't change your own role.")}`,
+    );
   }
 
   const supabase = await createClient();
-  const { error } = await supabase.from('league_members').update({ role }).eq('id', memberId);
+  const { error } = await supabase
+    .from('league_members')
+    .update({ role })
+    .eq('id', memberId);
   if (error) throw new Error(`Updating role: ${error.message}`);
 
   redirect(`/${slug}/admin/members`);
@@ -89,7 +94,9 @@ export async function removeMember(formData: FormData): Promise<void> {
     data: { user },
   } = await (await createClient()).auth.getUser();
   if (user && user.id === targetUserId) {
-    redirect(`/${slug}/admin/members?error=${encodeURIComponent("You can't remove your own access.")}`);
+    redirect(
+      `/${slug}/admin/members?error=${encodeURIComponent("You can't remove your own access.")}`,
+    );
   }
 
   const supabase = await createClient();

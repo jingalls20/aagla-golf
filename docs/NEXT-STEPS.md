@@ -23,12 +23,12 @@ live with the full schema, row-level security on every table, and **both
 chapters loaded and verified** — Iowa's fourteen years and Seattle's two.
 Supabase's security linter reports zero findings.
 
-| | `aagla-iowa` | `aagla-seattle` |
-|---|---|---|
-| Seasons | 14 (2013–2026) | 2 (2025–2026) |
-| Players | 26 | 8 |
-| Events | 100 | 14 |
-| Scores | 864 | 63 |
+|         | `aagla-iowa`   | `aagla-seattle` |
+| ------- | -------------- | --------------- |
+| Seasons | 14 (2013–2026) | 2 (2025–2026)   |
+| Players | 26             | 8               |
+| Events  | 100            | 14              |
+| Scores  | 864            | 63              |
 
 **The domain layer** — every scoring, handicap and standings rule from the old
 `Code.gs` — is ported to pure TypeScript in `lib/domain/` with 51 tests.
@@ -117,7 +117,7 @@ recorded against it. Carried over as-is; worth a glance next time you're in the
 admin screen.
 
 **Handicaps computed from phantom scores.** The 15 corrected rows were feeding
-into the handicap formula, which averages a player's *best* scores. Locked
+into the handicap formula, which averages a player's _best_ scores. Locked
 handicaps for the seasons following 2021, 2022 and 2024 may be slightly low for
 Ryan Lameroux, Bill Ice, Will Ice, Josh Rudman, David Back, Jansel Herrera and
 John Gookin. The stored values were left untouched rather than silently

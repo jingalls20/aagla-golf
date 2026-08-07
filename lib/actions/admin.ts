@@ -38,7 +38,9 @@ export async function createSeason(formData: FormData): Promise<void> {
   const handicapWindowEvents = Number(formData.get('handicapWindowEvents') ?? 7) || 7;
 
   if (!leagueId || !slug || !Number.isFinite(year)) {
-    throw new Error('Missing leagueId, slug, or a valid year on the create-season form.');
+    throw new Error(
+      'Missing leagueId, slug, or a valid year on the create-season form.',
+    );
   }
   await requireAdmin(leagueId, slug);
 
@@ -71,7 +73,9 @@ export async function setCurrentSeason(formData: FormData): Promise<void> {
   const slug = String(formData.get('slug') ?? '');
   const seasonId = String(formData.get('seasonId') ?? '');
   if (!leagueId || !slug || !seasonId) {
-    throw new Error('Missing leagueId, slug, or seasonId on the set-current-season form.');
+    throw new Error(
+      'Missing leagueId, slug, or seasonId on the set-current-season form.',
+    );
   }
   await requireAdmin(leagueId, slug);
 
@@ -82,9 +86,13 @@ export async function setCurrentSeason(formData: FormData): Promise<void> {
     .eq('league_id', leagueId)
     .eq('is_current', true)
     .neq('id', seasonId);
-  if (clearError) throw new Error(`Clearing the previous current season: ${clearError.message}`);
+  if (clearError)
+    throw new Error(`Clearing the previous current season: ${clearError.message}`);
 
-  const { error: setError } = await supabase.from('seasons').update({ is_current: true }).eq('id', seasonId);
+  const { error: setError } = await supabase
+    .from('seasons')
+    .update({ is_current: true })
+    .eq('id', seasonId);
   if (setError) throw new Error(`Setting the current season: ${setError.message}`);
 
   redirect(`/${slug}/admin/seasons`);
@@ -118,7 +126,9 @@ export async function addEvents(formData: FormData): Promise<void> {
     if (!name) continue;
     const eventTypeRaw = String(formData.get(`event_type_${i}`) ?? 'event');
     const eventType: EventType =
-      eventTypeRaw === 'major' || eventTypeRaw === 'championship' ? eventTypeRaw : 'event';
+      eventTypeRaw === 'major' || eventTypeRaw === 'championship'
+        ? eventTypeRaw
+        : 'event';
     const eventDate = String(formData.get(`event_date_${i}`) ?? '').trim() || null;
     const course = String(formData.get(`event_course_${i}`) ?? '').trim() || null;
     rows.push({ name, eventType, eventDate, course });
@@ -136,7 +146,8 @@ export async function addEvents(formData: FormData): Promise<void> {
     .order('sequence', { ascending: false })
     .limit(1);
   const startSequence =
-    (((existing ?? [])[0] as unknown as { sequence: number } | undefined)?.sequence ?? 0) + 1;
+    (((existing ?? [])[0] as unknown as { sequence: number } | undefined)?.sequence ??
+      0) + 1;
 
   const insertRows = rows.map((r, i) => ({
     league_id: leagueId,
@@ -196,13 +207,21 @@ export async function setPlayerStatus(formData: FormData): Promise<void> {
   const slug = String(formData.get('slug') ?? '');
   const playerId = String(formData.get('playerId') ?? '');
   const status = String(formData.get('status') ?? '');
-  if (!leagueId || !slug || !playerId || (status !== 'active' && status !== 'inactive')) {
+  if (
+    !leagueId ||
+    !slug ||
+    !playerId ||
+    (status !== 'active' && status !== 'inactive')
+  ) {
     throw new Error('Missing or invalid fields on the player-status form.');
   }
   await requireAdmin(leagueId, slug);
 
   const supabase = await createClient();
-  const { error } = await supabase.from('players').update({ status }).eq('id', playerId);
+  const { error } = await supabase
+    .from('players')
+    .update({ status })
+    .eq('id', playerId);
   if (error) throw new Error(`Updating player status: ${error.message}`);
 
   redirect(`/${slug}/admin/players`);
@@ -247,7 +266,9 @@ export async function updatePlayer(formData: FormData): Promise<void> {
   const firstYearRaw = String(formData.get('firstYear') ?? '').trim();
   const photoUrlRaw = String(formData.get('photoUrl') ?? '').trim();
   if (!leagueId || !slug || !playerId || !name) {
-    throw new Error('Missing leagueId, slug, playerId, or name on the player-edit form.');
+    throw new Error(
+      'Missing leagueId, slug, playerId, or name on the player-edit form.',
+    );
   }
   await requireAdmin(leagueId, slug);
 
@@ -285,7 +306,9 @@ export async function updateEvent(formData: FormData): Promise<void> {
   const name = String(formData.get('name') ?? '').trim();
   const eventTypeRaw = String(formData.get('eventType') ?? 'event');
   const eventType: EventType =
-    eventTypeRaw === 'major' || eventTypeRaw === 'championship' ? eventTypeRaw : 'event';
+    eventTypeRaw === 'major' || eventTypeRaw === 'championship'
+      ? eventTypeRaw
+      : 'event';
   const eventDate = String(formData.get('eventDate') ?? '').trim() || null;
   const course = String(formData.get('course') ?? '').trim() || null;
   const sequenceRaw = Number(formData.get('sequence'));
@@ -331,7 +354,9 @@ export async function deleteEvent(formData: FormData): Promise<void> {
   const seasonId = String(formData.get('seasonId') ?? '');
   const eventId = String(formData.get('eventId') ?? '');
   if (!leagueId || !slug || !seasonId || !eventId) {
-    throw new Error('Missing leagueId, slug, seasonId, or eventId on the delete-event form.');
+    throw new Error(
+      'Missing leagueId, slug, seasonId, or eventId on the delete-event form.',
+    );
   }
   await requireAdmin(leagueId, slug);
 
@@ -370,7 +395,10 @@ export async function updateSeasonRules(formData: FormData): Promise<void> {
   const supabase = await createClient();
   const { error } = await supabase
     .from('seasons')
-    .update({ handicap_best_of: handicapBestOf, handicap_window_events: handicapWindowEvents })
+    .update({
+      handicap_best_of: handicapBestOf,
+      handicap_window_events: handicapWindowEvents,
+    })
     .eq('id', seasonId);
   if (error) throw new Error(`Updating season rules: ${error.message}`);
 
@@ -398,7 +426,9 @@ export async function deleteSeason(formData: FormData): Promise<void> {
     .select('id', { count: 'exact', head: true })
     .eq('season_id', seasonId);
   if ((count ?? 0) > 0) {
-    throw new Error('This season has events in it -- remove them first, or this would delete their scores too.');
+    throw new Error(
+      'This season has events in it -- remove them first, or this would delete their scores too.',
+    );
   }
 
   const { error } = await supabase.from('seasons').delete().eq('id', seasonId);

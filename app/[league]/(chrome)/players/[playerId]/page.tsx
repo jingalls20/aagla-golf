@@ -4,7 +4,11 @@ import { getLeague, getPlayerProfile } from '@/lib/data/queries';
 import { LineChart } from '@/components/chart';
 import { Avatar } from '@/components/avatar';
 import { Badge, Card, Empty, fmt, toPar } from '@/components/ui';
-import { SortableTable, type SortableColumn, type SortableRow } from '@/components/sortable-table';
+import {
+  SortableTable,
+  type SortableColumn,
+  type SortableRow,
+} from '@/components/sortable-table';
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
@@ -37,7 +41,9 @@ export default async function PlayerPage({
     (r) => r.eventType === 'championship' && r.place === 1,
   ).length;
   const avg = (xs: number[]) =>
-    xs.length ? Math.round((xs.reduce((a, b) => a + b, 0) / xs.length) * 100) / 100 : null;
+    xs.length
+      ? Math.round((xs.reduce((a, b) => a + b, 0) / xs.length) * 100) / 100
+      : null;
 
   const recordColumns: SortableColumn[] = [
     { key: 'year', label: 'Year', align: 'right', sortable: true },
@@ -85,7 +91,10 @@ export default async function PlayerPage({
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center gap-3">
-        <Link href={`/${slug}/players`} className="text-xs text-slate-400 hover:text-slate-600">
+        <Link
+          href={`/${slug}/players`}
+          className="text-xs text-slate-400 hover:text-slate-600"
+        >
           ← All players
         </Link>
         <Avatar name={profile.name} photoUrl={profile.photoUrl} size="lg" />

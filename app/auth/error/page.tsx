@@ -5,7 +5,8 @@ export default function AuthErrorPage() {
     <main className="mx-auto max-w-sm px-4 py-16 text-center">
       <h1 className="text-xl font-semibold">Sign-in link didn&rsquo;t work</h1>
       <p className="mt-2 text-sm text-slate-500">
-        That link may have expired or already been used. Sign-in links are good for one use.
+        That link may have expired or already been used. Sign-in links are good for one
+        use.
       </p>
       <Link
         href="/login"

@@ -10,7 +10,9 @@ export default async function LoginPage({
   return (
     <main className="mx-auto max-w-sm px-4 py-16">
       <h1 className="text-xl font-semibold">Sign in</h1>
-      <p className="mt-1 text-sm text-slate-500">Use your Google account to continue.</p>
+      <p className="mt-1 text-sm text-slate-500">
+        Use your Google account to continue.
+      </p>
       <LoginForm next={next ?? null} />
     </main>
   );

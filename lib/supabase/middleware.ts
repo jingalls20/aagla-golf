@@ -34,30 +34,26 @@ type CookieToSet = { name: string; value: string; options?: Record<string, unkno
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });
 
-  const supabase = createServerClient(
-    SUPABASE_URL,
-    SUPABASE_ANON_KEY,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll(cookiesToSet: CookieToSet[]) {
-          for (const { name, value } of cookiesToSet) {
-            request.cookies.set(name, value);
-          }
-          response = NextResponse.next({ request });
-          for (const { name, value, options } of cookiesToSet) {
-            // `as never` because Supabase's cookie options and Next's
-            // ResponseCookie disagree on the exact literal types of fields
-            // like sameSite, while being structurally interchangeable at
-            // runtime. Localised here rather than loosened globally.
-            response.cookies.set(name, value, options as never);
-          }
-        },
+  const supabase = createServerClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    cookies: {
+      getAll() {
+        return request.cookies.getAll();
+      },
+      setAll(cookiesToSet: CookieToSet[]) {
+        for (const { name, value } of cookiesToSet) {
+          request.cookies.set(name, value);
+        }
+        response = NextResponse.next({ request });
+        for (const { name, value, options } of cookiesToSet) {
+          // `as never` because Supabase's cookie options and Next's
+          // ResponseCookie disagree on the exact literal types of fields
+          // like sameSite, while being structurally interchangeable at
+          // runtime. Localised here rather than loosened globally.
+          response.cookies.set(name, value, options as never);
+        }
       },
     },
-  );
+  });
 
   await supabase.auth.getUser();
 

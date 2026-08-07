@@ -19,9 +19,16 @@ export interface LeagueMemberRow {
  */
 export async function getLeagueMembers(leagueId: string): Promise<LeagueMemberRow[]> {
   const supabase = await createClient();
-  const { data, error } = await supabase.rpc('list_league_members', { p_league_id: leagueId });
+  const { data, error } = await supabase.rpc('list_league_members', {
+    p_league_id: leagueId,
+  });
   if (error) throw new Error(`Loading league members: ${error.message}`);
-  return ((data ?? []) as unknown as { id: string; user_id: string; email: string; role: MemberRole }[]).map(
-    (r) => ({ id: r.id, userId: r.user_id, email: r.email, role: r.role }),
-  );
+  return (
+    (data ?? []) as unknown as {
+      id: string;
+      user_id: string;
+      email: string;
+      role: MemberRole;
+    }[]
+  ).map((r) => ({ id: r.id, userId: r.user_id, email: r.email, role: r.role }));
 }

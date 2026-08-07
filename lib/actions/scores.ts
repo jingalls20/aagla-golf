@@ -6,7 +6,12 @@ import { isLeagueAdmin } from '@/lib/data/admin';
 import { getSeasonRankOf } from '@/lib/data/season-rank';
 import { recomputeEventResults } from '@/lib/domain/scoring';
 import { computeHandicap, championshipHandicap } from '@/lib/domain/handicap';
-import type { DomainScore, EventType, HistoricalRound, PointsTable } from '@/lib/domain/types';
+import type {
+  DomainScore,
+  EventType,
+  HistoricalRound,
+  PointsTable,
+} from '@/lib/domain/types';
 
 /**
  * Score entry, in one transactional-feeling submit rather than the old app's
@@ -113,7 +118,9 @@ export async function saveEventScores(formData: FormData): Promise<void> {
 
   // Standings-to-date, for the Championship's staggered start.
   const seasonRankOf =
-    eventType === 'championship' ? await getSeasonRankOf(leagueId, seasonId) : new Map<string, number>();
+    eventType === 'championship'
+      ? await getSeasonRankOf(leagueId, seasonId)
+      : new Map<string, number>();
 
   for (const entry of entries) {
     const fsApplied = await lockedHandicapFor({
@@ -139,7 +146,8 @@ export async function saveEventScores(formData: FormData): Promise<void> {
       },
       { onConflict: 'event_id,player_id' },
     );
-    if (error) throw new Error(`Saving score for player ${entry.playerId}: ${error.message}`);
+    if (error)
+      throw new Error(`Saving score for player ${entry.playerId}: ${error.message}`);
   }
 
   // DNP is a plain fact, not a round played -- no handicap lookup or lock,
@@ -164,9 +172,20 @@ export async function saveEventScores(formData: FormData): Promise<void> {
   // A newly built event starts life as 'scheduled'; this submit is the first
   // recorded outcome for it, so it's happened now. Never resurrects a
   // deliberately cancelled event.
-  await supabase.from('events').update({ status: 'played' }).eq('id', eventId).neq('status', 'cancelled');
+  await supabase
+    .from('events')
+    .update({ status: 'played' })
+    .eq('id', eventId)
+    .neq('status', 'cancelled');
 
-  await recomputeAndPersist({ supabase, leagueId, eventId, eventType, pointsTable: seasonRow.points_table, activePlayerIds });
+  await recomputeAndPersist({
+    supabase,
+    leagueId,
+    eventId,
+    eventType,
+    pointsTable: seasonRow.points_table,
+    activePlayerIds,
+  });
 
   redirect(`/${slug}/admin?year=${year}&event=${eventId}&saved=1`);
 }
@@ -187,7 +206,9 @@ export async function clearScore(formData: FormData): Promise<void> {
   const year = Number(formData.get('year'));
 
   if (!leagueId || !eventId || !playerId || !slug) {
-    throw new Error('Missing leagueId, eventId, playerId, or slug on the clear-score form.');
+    throw new Error(
+      'Missing leagueId, eventId, playerId, or slug on the clear-score form.',
+    );
   }
   if (!(await isLeagueAdmin(leagueId))) {
     redirect(`/${slug}`);
@@ -224,9 +245,18 @@ export async function clearScore(formData: FormData): Promise<void> {
     .select('id')
     .eq('league_id', leagueId)
     .eq('status', 'active');
-  const activePlayerIds = ((activePlayers ?? []) as unknown as { id: string }[]).map((p) => p.id);
+  const activePlayerIds = ((activePlayers ?? []) as unknown as { id: string }[]).map(
+    (p) => p.id,
+  );
 
-  await recomputeAndPersist({ supabase, leagueId, eventId, eventType, pointsTable, activePlayerIds });
+  await recomputeAndPersist({
+    supabase,
+    leagueId,
+    eventId,
+    eventType,
+    pointsTable,
+    activePlayerIds,
+  });
 
   redirect(`/${slug}/admin?year=${year}&event=${eventId}&saved=1`);
 }
@@ -266,7 +296,9 @@ async function lockedHandicapFor(args: {
   } else {
     const { data: priorScores } = await supabase
       .from('scores')
-      .select('true_score, events!inner(name, event_type, sequence, season_id, seasons!inner(year))')
+      .select(
+        'true_score, events!inner(name, event_type, sequence, season_id, seasons!inner(year))',
+      )
       .eq('league_id', args.leagueId)
       .eq('player_id', args.playerId);
     const rows = (priorScores ?? []) as unknown as {
@@ -281,7 +313,9 @@ async function lockedHandicapFor(args: {
     const rounds: HistoricalRound[] = rows
       .filter((r) => r.true_score !== null && r.events.event_type !== 'championship')
       .filter((r) => {
-        const y = Array.isArray(r.events.seasons) ? r.events.seasons[0].year : r.events.seasons.year;
+        const y = Array.isArray(r.events.seasons)
+          ? r.events.seasons[0].year
+          : r.events.seasons.year;
         return y === args.priorYear;
       })
       .map((r) => ({
@@ -292,7 +326,12 @@ async function lockedHandicapFor(args: {
         trueScore: Number(r.true_score),
       }));
 
-    const result = computeHandicap(rounds, args.bestOf, args.windowEvents, args.priorYear);
+    const result = computeHandicap(
+      rounds,
+      args.bestOf,
+      args.windowEvents,
+      args.priorYear,
+    );
     lockedFs = result.fs;
 
     const { error } = await supabase.from('handicaps').insert({
@@ -312,7 +351,8 @@ async function lockedHandicapFor(args: {
         .eq('season_id', args.seasonId)
         .eq('player_id', args.playerId)
         .maybeSingle();
-      if (raced) lockedFs = Math.round(Number((raced as unknown as { fs: number | string }).fs));
+      if (raced)
+        lockedFs = Math.round(Number((raced as unknown as { fs: number | string }).fs));
     }
   }
 
@@ -341,13 +381,15 @@ async function recomputeAndPersist(args: {
     .from('scores')
     .select('player_id, true_score, fs_applied, course_differential, source')
     .eq('event_id', eventId);
-  const domainScores: DomainScore[] = ((currentScores ?? []) as unknown as {
-    player_id: string;
-    true_score: string | number | null;
-    fs_applied: string | number | null;
-    course_differential: string | number | null;
-    source: DomainScore['source'];
-  }[]).map((r) => ({
+  const domainScores: DomainScore[] = (
+    (currentScores ?? []) as unknown as {
+      player_id: string;
+      true_score: string | number | null;
+      fs_applied: string | number | null;
+      course_differential: string | number | null;
+      source: DomainScore['source'];
+    }[]
+  ).map((r) => ({
     playerId: r.player_id,
     trueScore: r.true_score === null ? null : Number(r.true_score),
     fsApplied: r.fs_applied === null ? null : Number(r.fs_applied),
@@ -368,7 +410,8 @@ async function recomputeAndPersist(args: {
       .update({ net_score: r.netScore, place: r.place, event_points: r.eventPoints })
       .eq('event_id', eventId)
       .eq('player_id', r.playerId);
-    if (error) throw new Error(`Writing back result for player ${r.playerId}: ${error.message}`);
+    if (error)
+      throw new Error(`Writing back result for player ${r.playerId}: ${error.message}`);
   }
 
   for (const r of result.missed) {
@@ -390,7 +433,10 @@ async function recomputeAndPersist(args: {
       },
       { onConflict: 'event_id,player_id' },
     );
-    if (error) throw new Error(`Writing ${r.source} placeholder for player ${r.playerId}: ${error.message}`);
+    if (error)
+      throw new Error(
+        `Writing ${r.source} placeholder for player ${r.playerId}: ${error.message}`,
+      );
   }
 
   if (result.clearMissedFor.length > 0) {

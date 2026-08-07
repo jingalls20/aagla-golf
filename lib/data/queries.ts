@@ -1,7 +1,12 @@
 import { createClient } from '@/lib/supabase/server';
 import { computeStandings } from '@/lib/domain/standings';
 import { computeHandicap } from '@/lib/domain/handicap';
-import type { EventType, HistoricalRound, ScoreSource, StandingRow } from '@/lib/domain/types';
+import type {
+  EventType,
+  HistoricalRound,
+  ScoreSource,
+  StandingRow,
+} from '@/lib/domain/types';
 
 /**
  * Read queries for the league screens.
@@ -133,7 +138,10 @@ export function currentYearOf(seasons: SeasonInfo[]): number | null {
   return seasons.find((s) => s.isCurrent)?.year ?? seasons[0]?.year ?? null;
 }
 
-export async function getEvents(leagueId: string, year?: number): Promise<LeagueEvent[]> {
+export async function getEvents(
+  leagueId: string,
+  year?: number,
+): Promise<LeagueEvent[]> {
   const supabase = await createClient();
   const { data } = await supabase
     .from('events')
@@ -334,13 +342,17 @@ export async function getHandicaps(
     const p = value as { id: string } | { id: string }[];
     return Array.isArray(p) ? p[0].id : p.id;
   };
-  const nonOverridePlayerIds = filtered.filter((r) => !Boolean(r.is_override)).map((r) => idOf(r.players));
+  const nonOverridePlayerIds = filtered
+    .filter((r) => !r.is_override)
+    .map((r) => idOf(r.players));
 
   const roundsByPlayer = new Map<string, HistoricalRound[]>();
   if (nonOverridePlayerIds.length > 0) {
     const { data: priorScores } = await supabase
       .from('scores')
-      .select('player_id, true_score, events!inner(name, event_type, sequence, seasons!inner(year))')
+      .select(
+        'player_id, true_score, events!inner(name, event_type, sequence, seasons!inner(year))',
+      )
       .eq('league_id', leagueId)
       .in('player_id', nonOverridePlayerIds);
     const priorRows = (priorScores ?? []) as unknown as Record<string, unknown>[];
@@ -352,7 +364,8 @@ export async function getHandicaps(
         seasons: { year: number } | { year: number }[];
       };
       const y = Array.isArray(ev.seasons) ? ev.seasons[0].year : ev.seasons.year;
-      if (y !== priorYear || ev.event_type === 'championship' || r.true_score === null) continue;
+      if (y !== priorYear || ev.event_type === 'championship' || r.true_score === null)
+        continue;
       const pid = r.player_id as string;
       const list = roundsByPlayer.get(pid) ?? [];
       list.push({
@@ -374,8 +387,16 @@ export async function getHandicaps(
       let roundsUsed: { eventName: string | null; trueScore: number }[] = [];
       if (!isOverride) {
         const rounds = roundsByPlayer.get(playerId) ?? [];
-        const result = computeHandicap(rounds, season.handicap_best_of, season.handicap_window_events, priorYear);
-        roundsUsed = result.roundsUsed.map((x) => ({ eventName: x.eventName, trueScore: x.trueScore }));
+        const result = computeHandicap(
+          rounds,
+          season.handicap_best_of,
+          season.handicap_window_events,
+          priorYear,
+        );
+        roundsUsed = result.roundsUsed.map((x) => ({
+          eventName: x.eventName,
+          trueScore: x.trueScore,
+        }));
       }
       return {
         playerId,

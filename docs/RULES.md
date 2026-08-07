@@ -13,7 +13,7 @@ the tests are what actually governs — but please fix whichever one is wrong.
 A round is recorded as a **true score**: strokes relative to par, so `-2` is two
 under and `14` is fourteen over.
 
-Each player plays off a **handicap**, called *free strokes* or *FS* in this
+Each player plays off a **handicap**, called _free strokes_ or _FS_ in this
 league. A **course differential** adjusts for a course being harder or easier
 than usual. The three combine into a **net score**:
 
@@ -21,7 +21,7 @@ than usual. The three combine into a **net score**:
 net = floor(true score − handicap) + course differential
 ```
 
-The order matters. The floor applies to the handicap-adjusted score *before* the
+The order matters. The floor applies to the handicap-adjusted score _before_ the
 differential is added, not to the whole expression. On a differential of −0.5 the
 two readings differ by half a stroke, and fourteen years of recorded history
 were computed the first way.
@@ -39,17 +39,17 @@ skipping. Nets of 70, 72, 72, 74 place 1st, 2nd, 2nd, 3rd — not 1st, 2nd, 2nd,
 by whoever accumulates the fewest.
 
 | Place | Event | Major |
-|---|---|---|
-| 1st | 0 | 0 |
-| 2nd | 1 | 2 |
-| 3rd | 1.5 | 3 |
-| 4th | 2 | 4 |
-| 5th | 2.5 | 5 |
-| 6th | 3 | 6 |
-| 7th | 3.5 | 7 |
-| 8th | 4 | 8 |
-| 9th | 4.5 | 9 |
-| 10th | 5 | 10 |
+| ----- | ----- | ----- |
+| 1st   | 0     | 0     |
+| 2nd   | 1     | 2     |
+| 3rd   | 1.5   | 3     |
+| 4th   | 2     | 4     |
+| 5th   | 2.5   | 5     |
+| 6th   | 3     | 6     |
+| 7th   | 3.5   | 7     |
+| 8th   | 4     | 8     |
+| 9th   | 4.5   | 9     |
+| 10th  | 5     | 10    |
 
 Majors are worth roughly double an ordinary event.
 
@@ -90,7 +90,7 @@ before it:
 Most-recent-first narrows it to current form; best-of-3 then discards the
 blow-up rounds, so one disastrous afternoon doesn't inflate a handicap for a
 whole year. Championship rounds are excluded, because they're played off a
-*reduced* handicap and feeding them back in would compound the reduction year
+_reduced_ handicap and feeding them back in would compound the reduction year
 over year.
 
 `7` and `3` live in `seasons.handicap_window_events` and
@@ -145,14 +145,14 @@ the rules above.
 
 ## Who can do what
 
-| | Owner | Admin | Member | Public |
-|---|---|---|---|---|
-| View standings, results, handicaps | ✓ | ✓ | ✓ | ✓ (if the league's board is public) |
-| Enter their own score | ✓ | ✓ | ✓ | |
-| Enter anyone's score | ✓ | ✓ | | |
-| Create and edit events | ✓ | ✓ | | |
-| Manage players, override handicaps | ✓ | ✓ | | |
-| Grant and revoke admin | ✓ | | | |
+|                                    | Owner | Admin | Member | Public                              |
+| ---------------------------------- | ----- | ----- | ------ | ----------------------------------- |
+| View standings, results, handicaps | ✓     | ✓     | ✓      | ✓ (if the league's board is public) |
+| Enter their own score              | ✓     | ✓     | ✓      |                                     |
+| Enter anyone's score               | ✓     | ✓     |        |                                     |
+| Create and edit events             | ✓     | ✓     |        |                                     |
+| Manage players, override handicaps | ✓     | ✓     |        |                                     |
+| Grant and revoke admin             | ✓     |       |        |                                     |
 
 These are enforced by row-level security in Postgres, not by application code,
 so they hold no matter what does the writing. Player email addresses are never

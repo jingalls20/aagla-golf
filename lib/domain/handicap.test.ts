@@ -44,7 +44,9 @@ describe('computeHandicap', () => {
     ];
     // Window of 2 must keep sequences 2 and 3, whatever order they came in.
     const result = computeHandicap(shuffled, 2, 2, 2025);
-    expect(result.roundsUsed.map((r) => r.trueScore).sort((a, b) => a - b)).toEqual([20, 30]);
+    expect(result.roundsUsed.map((r) => r.trueScore).sort((a, b) => a - b)).toEqual([
+      20, 30,
+    ]);
   });
 
   it('defaults a player with no history to zero, and says so', () => {

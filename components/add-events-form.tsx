@@ -31,7 +31,9 @@ export function AddEventsForm() {
           className="flex flex-wrap items-end gap-2 rounded-lg border border-slate-200 p-3 dark:border-slate-800"
         >
           <label className="flex flex-col text-xs">
-            <span className="mb-1 font-medium uppercase tracking-wide text-slate-400">Name</span>
+            <span className="mb-1 font-medium uppercase tracking-wide text-slate-400">
+              Name
+            </span>
             <input
               name={`event_name_${i}`}
               placeholder="e.g. Spring Open"
@@ -39,7 +41,9 @@ export function AddEventsForm() {
             />
           </label>
           <label className="flex flex-col text-xs">
-            <span className="mb-1 font-medium uppercase tracking-wide text-slate-400">Type</span>
+            <span className="mb-1 font-medium uppercase tracking-wide text-slate-400">
+              Type
+            </span>
             <select
               name={`event_type_${i}`}
               defaultValue="event"

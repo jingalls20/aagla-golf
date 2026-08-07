@@ -35,7 +35,10 @@ export default async function LeagueLayout({
               chapter" redirect in middleware.ts -- without it, this link
               would just bounce straight back here.
             */}
-            <Link href="/?chapters=1" className="text-xs text-slate-400 hover:text-slate-600">
+            <Link
+              href="/?chapters=1"
+              className="text-xs text-slate-400 hover:text-slate-600"
+            >
               ← All chapters
             </Link>
             <h1 className="text-2xl font-semibold">{league.name}</h1>

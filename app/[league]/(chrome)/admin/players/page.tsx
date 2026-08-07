@@ -34,7 +34,10 @@ export default async function PlayersAdminPage({
 
   return (
     <div className="space-y-6">
-      <Link href={`/${slug}/admin`} className="text-xs text-slate-400 hover:text-slate-600">
+      <Link
+        href={`/${slug}/admin`}
+        className="text-xs text-slate-400 hover:text-slate-600"
+      >
         ← Back to score entry
       </Link>
 
@@ -75,7 +78,10 @@ export default async function PlayersAdminPage({
                   )}
                 </Td>
                 <Td colSpan={3}>
-                  <form action={updatePlayer} className="flex flex-wrap items-center gap-2">
+                  <form
+                    action={updatePlayer}
+                    className="flex flex-wrap items-center gap-2"
+                  >
                     <input type="hidden" name="leagueId" value={league.id} />
                     <input type="hidden" name="slug" value={slug} />
                     <input type="hidden" name="playerId" value={p.id} />
@@ -137,7 +143,9 @@ export default async function PlayersAdminPage({
           <input type="hidden" name="leagueId" value={league.id} />
           <input type="hidden" name="slug" value={slug} />
           <label className="flex flex-col text-xs">
-            <span className="mb-1 font-medium uppercase tracking-wide text-slate-400">Name</span>
+            <span className="mb-1 font-medium uppercase tracking-wide text-slate-400">
+              Name
+            </span>
             <input
               name="name"
               required

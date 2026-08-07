@@ -64,7 +64,9 @@ export function LoginForm({ next }: { next: string | null }) {
         </svg>
         {loading ? 'Redirecting…' : 'Continue with Google'}
       </button>
-      {errorMessage ? <p className="mt-2 text-xs text-red-600">{errorMessage}</p> : null}
+      {errorMessage ? (
+        <p className="mt-2 text-xs text-red-600">{errorMessage}</p>
+      ) : null}
     </div>
   );
 }

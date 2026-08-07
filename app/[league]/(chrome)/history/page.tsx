@@ -12,7 +12,11 @@ import {
 import { Card, Empty, fmt, toPar } from '@/components/ui';
 import { Avatar } from '@/components/avatar';
 import { InactiveToggle, NavSelect } from '@/components/selectors';
-import { SortableTable, type SortableColumn, type SortableRow } from '@/components/sortable-table';
+import {
+  SortableTable,
+  type SortableColumn,
+  type SortableRow,
+} from '@/components/sortable-table';
 import { TableHint } from '@/components/table-hint';
 import { championshipHandicap } from '@/lib/domain/handicap';
 import { resolveShowInactive } from '@/lib/prefs';
@@ -48,11 +52,15 @@ export default async function HistoryPage({
     .filter((s) => !s.isCurrent && (currentYear === null || s.year < currentYear))
     .map((s) => s.year);
   if (pastYears.length === 0) {
-    return <Empty>No past seasons yet — history shows up here once a season ends.</Empty>;
+    return (
+      <Empty>No past seasons yet — history shows up here once a season ends.</Empty>
+    );
   }
 
   const year =
-    yearParam && pastYears.includes(Number(yearParam)) ? Number(yearParam) : pastYears[0];
+    yearParam && pastYears.includes(Number(yearParam))
+      ? Number(yearParam)
+      : pastYears[0];
 
   const [standings, events, scores] = await Promise.all([
     getStandings(league.id, year),
@@ -92,7 +100,12 @@ export default async function HistoryPage({
     { key: 'player', label: 'Player', sortable: true },
     { key: 'points', label: 'Event Points', align: 'right', sortable: true },
     { key: 'played', label: 'Played', align: 'right', sortable: true },
-    { key: 'championshipStart', label: 'Championship start', align: 'right', sortable: true },
+    {
+      key: 'championshipStart',
+      label: 'Championship start',
+      align: 'right',
+      sortable: true,
+    },
   ];
   const standingsRows: SortableRow[] = visibleStandings.map((s) => {
     // Same rule as the current-season Standings tab: what this player would
@@ -128,40 +141,42 @@ export default async function HistoryPage({
                 </span>
               ) : null}
               {s.playerStatus === 'inactive' ? (
-                <span className="ml-1.5 align-middle text-[10px] text-slate-400">inactive</span>
+                <span className="ml-1.5 align-middle text-[10px] text-slate-400">
+                  inactive
+                </span>
               ) : null}
             </span>
           </Link>
         ),
         points: fmt(s.totalPoints),
         played: s.eventsPlayed,
-        championshipStart: <span className="text-slate-400">{toPar(championshipStart)}</span>,
+        championshipStart: (
+          <span className="text-slate-400">{toPar(championshipStart)}</span>
+        ),
       },
     };
   });
 
   const gridColumns: SortableColumn[] = [
     { key: 'player', label: 'Player', sortable: true },
-    ...played.map(
-      (e): SortableColumn => ({
-        key: e.id,
-        // Plain text, not a link -- same reasoning as the dashboard's event
-        // grid: this header doubles as the sort control, and a nested <a>
-        // would hijack the click into a navigation instead of a sort.
-        label: (
-          <span>
-            {e.name ?? `#${e.legacyId ?? e.sequence}`}
-            {e.eventType !== 'event' ? (
-              <span className="block text-[10px] font-normal normal-case text-slate-400">
-                {e.eventType}
-              </span>
-            ) : null}
-          </span>
-        ),
-        align: 'center',
-        sortable: true,
-      }),
-    ),
+    ...played.map((e): SortableColumn => ({
+      key: e.id,
+      // Plain text, not a link -- same reasoning as the dashboard's event
+      // grid: this header doubles as the sort control, and a nested <a>
+      // would hijack the click into a navigation instead of a sort.
+      label: (
+        <span>
+          {e.name ?? `#${e.legacyId ?? e.sequence}`}
+          {e.eventType !== 'event' ? (
+            <span className="block text-[10px] font-normal normal-case text-slate-400">
+              {e.eventType}
+            </span>
+          ) : null}
+        </span>
+      ),
+      align: 'center',
+      sortable: true,
+    })),
   ];
   const gridRows: SortableRow[] = rowPlayers.map(([playerId, meta]) => {
     const cells: Record<string, ReactNode> = {
@@ -209,7 +224,10 @@ export default async function HistoryPage({
           value={String(year)}
           options={pastYears.map((y) => ({ value: String(y), label: String(y) }))}
           hrefs={Object.fromEntries(
-            pastYears.map((y): [string, string] => [String(y), `/${slug}/history?year=${y}`]),
+            pastYears.map((y): [string, string] => [
+              String(y),
+              `/${slug}/history?year=${y}`,
+            ]),
           )}
         />
         <InactiveToggle show={showInactive} />
@@ -217,12 +235,13 @@ export default async function HistoryPage({
 
       <Card title={`${year} season standings`}>
         <TableHint>
-          Lowest total wins — winning an event scores zero. A player&rsquo;s handicap is shown in
-          parentheses next to their name. <strong>Championship start</strong> is where they began
-          the Championship round relative to par, based on how the season actually finished. Like
-          a net score, a big handicap starts well under par, and a small or negative one can start
-          over. Championships are excluded from Event Points, but 🏆 marks that year&rsquo;s
-          Championship winner, wherever they landed in the standings.
+          Lowest total wins — winning an event scores zero. A player&rsquo;s handicap is
+          shown in parentheses next to their name. <strong>Championship start</strong>{' '}
+          is where they began the Championship round relative to par, based on how the
+          season actually finished. Like a net score, a big handicap starts well under
+          par, and a small or negative one can start over. Championships are excluded
+          from Event Points, but 🏆 marks that year&rsquo;s Championship winner,
+          wherever they landed in the standings.
         </TableHint>
         {visibleStandings.length === 0 ? (
           <Empty>No results recorded for {year}.</Empty>
@@ -233,8 +252,9 @@ export default async function HistoryPage({
 
       <Card title={`Every round in ${year}`}>
         <TableHint>
-          Each cell shows finishing place; below it, net score relative to par and event points
-          earned. A dash means no round recorded. Click a column header to sort by that event.
+          Each cell shows finishing place; below it, net score relative to par and event
+          points earned. A dash means no round recorded. Click a column header to sort
+          by that event.
         </TableHint>
         {played.length === 0 || gridRows.length === 0 ? (
           <Empty>No events played that season.</Empty>

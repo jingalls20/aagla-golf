@@ -23,8 +23,8 @@ export default async function MembersAdminPage({
   if (!owner) {
     return (
       <Empty>
-        Only {league.name}&rsquo;s owner can manage admin access. If you need
-        access changed, ask them.
+        Only {league.name}&rsquo;s owner can manage admin access. If you need access
+        changed, ask them.
       </Empty>
     );
   }
@@ -33,7 +33,10 @@ export default async function MembersAdminPage({
 
   return (
     <div className="space-y-6">
-      <Link href={`/${slug}/admin`} className="text-xs text-slate-400 hover:text-slate-600">
+      <Link
+        href={`/${slug}/admin`}
+        className="text-xs text-slate-400 hover:text-slate-600"
+      >
         ← Back to score entry
       </Link>
 
@@ -51,8 +54,8 @@ export default async function MembersAdminPage({
       <Card title="Admin access">
         <p className="mb-3 text-xs text-slate-400">
           Everyone listed here can enter scores and manage {league.name}. Owner is you
-          and can&rsquo;t be changed from this screen; co-admins have every other
-          admin ability.
+          and can&rsquo;t be changed from this screen; co-admins have every other admin
+          ability.
         </p>
         <TableWrap>
           <thead>
@@ -116,14 +119,16 @@ export default async function MembersAdminPage({
 
       <Card title="Invite a co-admin">
         <p className="mb-3 text-xs text-slate-400">
-          They need to have signed in to AAGLA Golf at least once already -- ask
-          them to sign in with Google, then invite their email here.
+          They need to have signed in to AAGLA Golf at least once already -- ask them to
+          sign in with Google, then invite their email here.
         </p>
         <form action={inviteMember} className="flex flex-wrap items-end gap-3">
           <input type="hidden" name="leagueId" value={league.id} />
           <input type="hidden" name="slug" value={slug} />
           <label className="flex flex-col text-xs">
-            <span className="mb-1 font-medium uppercase tracking-wide text-slate-400">Email</span>
+            <span className="mb-1 font-medium uppercase tracking-wide text-slate-400">
+              Email
+            </span>
             <input
               type="email"
               name="email"
@@ -133,7 +138,9 @@ export default async function MembersAdminPage({
             />
           </label>
           <label className="flex flex-col text-xs">
-            <span className="mb-1 font-medium uppercase tracking-wide text-slate-400">Role</span>
+            <span className="mb-1 font-medium uppercase tracking-wide text-slate-400">
+              Role
+            </span>
             <select
               name="role"
               defaultValue="admin"

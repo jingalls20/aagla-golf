@@ -48,8 +48,8 @@ export function Avatar({
   size?: keyof typeof SIZES;
 }) {
   if (photoUrl) {
-    // eslint-disable-next-line @next/next/no-img-element -- external, variable-origin URLs
     return (
+      // eslint-disable-next-line @next/next/no-img-element -- external, variable-origin URLs
       <img
         src={photoUrl}
         alt={name}

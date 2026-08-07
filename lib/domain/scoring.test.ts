@@ -18,7 +18,9 @@ function score(
 
 describe('netScoreFor', () => {
   it('subtracts the handicap from the true score', () => {
-    expect(netScoreFor({ trueScore: 90, fsApplied: 10, courseDifferential: 0 })).toBe(80);
+    expect(netScoreFor({ trueScore: 90, fsApplied: 10, courseDifferential: 0 })).toBe(
+      80,
+    );
   });
 
   it('floors the handicap-adjusted score BEFORE adding the course differential', () => {
@@ -27,18 +29,26 @@ describe('netScoreFor', () => {
     //   ours:      floor(90 - 10.5) + (-0.5)  =  79 - 0.5  =  78.5
     //   the other: floor(90 - 10.5  -   0.5)  =  floor(79)  =  79
     // A decade of recorded league history was computed the first way.
-    expect(netScoreFor({ trueScore: 90, fsApplied: 10.5, courseDifferential: -0.5 })).toBe(78.5);
+    expect(
+      netScoreFor({ trueScore: 90, fsApplied: 10.5, courseDifferential: -0.5 }),
+    ).toBe(78.5);
 
     // And the everyday case, where both readings happen to agree.
-    expect(netScoreFor({ trueScore: 90, fsApplied: 10.5, courseDifferential: 2 })).toBe(81);
+    expect(netScoreFor({ trueScore: 90, fsApplied: 10.5, courseDifferential: 2 })).toBe(
+      81,
+    );
   });
 
   it('treats a missing handicap as zero strokes', () => {
-    expect(netScoreFor({ trueScore: 85, fsApplied: null, courseDifferential: 0 })).toBe(85);
+    expect(netScoreFor({ trueScore: 85, fsApplied: null, courseDifferential: 0 })).toBe(
+      85,
+    );
   });
 
   it('handles scores expressed relative to par, including negatives', () => {
-    expect(netScoreFor({ trueScore: -2, fsApplied: 3, courseDifferential: 0 })).toBe(-5);
+    expect(netScoreFor({ trueScore: -2, fsApplied: 3, courseDifferential: 0 })).toBe(
+      -5,
+    );
   });
 });
 
@@ -367,7 +377,9 @@ describe('recomputeEventResults', () => {
 
       expect(result.played).toEqual([]);
       expect(result.missed[0].place).toBe(1);
-      expect(result.missed[0].eventPoints).toBe(pointsForPlace(pointsTable, 'event', 1));
+      expect(result.missed[0].eventPoints).toBe(
+        pointsForPlace(pointsTable, 'event', 1),
+      );
     });
   });
 });

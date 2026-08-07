@@ -53,7 +53,10 @@ export interface SeasonRules {
 }
 
 /** A season's id and handicap rules, by league and year. */
-export async function getSeasonRow(leagueId: string, year: number): Promise<SeasonRules | null> {
+export async function getSeasonRow(
+  leagueId: string,
+  year: number,
+): Promise<SeasonRules | null> {
   const supabase = await createClient();
   const { data } = await supabase
     .from('seasons')
@@ -113,10 +116,9 @@ export async function getEntryHandicaps(args: {
     // Rounded on read for the same reason lockedHandicapFor rounds in
     // scores.ts: a lock written before whole-stroke rounding was the rule
     // can still carry a decimal in the database.
-    ((lockedRows ?? []) as unknown as { player_id: string; fs: string | number }[]).map((r) => [
-      r.player_id,
-      Math.round(Number(r.fs)),
-    ]),
+    ((lockedRows ?? []) as unknown as { player_id: string; fs: string | number }[]).map(
+      (r) => [r.player_id, Math.round(Number(r.fs))],
+    ),
   );
 
   const unlockedIds = args.playerIds.filter((id) => !locked.has(id));
@@ -144,7 +146,9 @@ export async function getEntryHandicaps(args: {
     const roundsByPlayer = new Map<string, HistoricalRound[]>();
     for (const r of rows) {
       if (r.true_score === null || r.events.event_type === 'championship') continue;
-      const y = Array.isArray(r.events.seasons) ? r.events.seasons[0].year : r.events.seasons.year;
+      const y = Array.isArray(r.events.seasons)
+        ? r.events.seasons[0].year
+        : r.events.seasons.year;
       if (y !== args.priorYear) continue;
       const list = roundsByPlayer.get(r.player_id) ?? [];
       list.push({
@@ -159,7 +163,12 @@ export async function getEntryHandicaps(args: {
 
     for (const playerId of unlockedIds) {
       const rounds = roundsByPlayer.get(playerId) ?? [];
-      const result = computeHandicap(rounds, args.bestOf, args.windowEvents, args.priorYear);
+      const result = computeHandicap(
+        rounds,
+        args.bestOf,
+        args.windowEvents,
+        args.priorYear,
+      );
       projected.set(playerId, result.fs);
     }
   }

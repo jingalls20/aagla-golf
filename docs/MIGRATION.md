@@ -8,9 +8,9 @@ Both chapters ran on the same Apps Script app, each bound to its own
 spreadsheet, so both had identical `App Players` / `App Events` / `App Scores` /
 `App Handicaps` / `App Config` tabs and both migrated the same way.
 
-| Source | Exported |
-|---|---|
-| **AAGLA Data Set - Iowa Chapter** (`1SYPaJHwIE56o17fHP3928cWXJh_oJyknxWjqZm9E9iY`) | 1 August 2026 |
+| Source                                                                                | Exported      |
+| ------------------------------------------------------------------------------------- | ------------- |
+| **AAGLA Data Set - Iowa Chapter** (`1SYPaJHwIE56o17fHP3928cWXJh_oJyknxWjqZm9E9iY`)    | 1 August 2026 |
 | **AAGLA Data Set - Seattle Chapter** (`1NZEFnPGx0x_Ghs0fYKEe0OvCt-GgEJ9_-vbq4qzE4xU`) | 1 August 2026 |
 
 The migrations live in `supabase/migrations/` as ordinary migrations
@@ -19,14 +19,14 @@ rebuilt from scratch with nothing but the repo.
 
 ## What landed
 
-| | `aagla-iowa` | `aagla-seattle` |
-|---|---|---|
-| Seasons | 14 (2013–2026) | 2 (2025–2026) |
-| Players | 26 | 8 |
-| Player contacts | 7 | 1 |
-| Events | 100 | 14 |
-| Handicaps | 154 | 16 |
-| Scores | 864 | 63 |
+|                 | `aagla-iowa`   | `aagla-seattle` |
+| --------------- | -------------- | --------------- |
+| Seasons         | 14 (2013–2026) | 2 (2025–2026)   |
+| Players         | 26             | 8               |
+| Player contacts | 7              | 1               |
+| Events          | 100            | 14              |
+| Handicaps       | 154            | 16              |
+| Scores          | 864            | 63              |
 
 Iowa's scores break down as 836 historical, 10 entered in the app and 18 missed;
 Seattle's as 56 historical, 6 new and 1 missed.
@@ -82,7 +82,7 @@ few scattered championship no-shows.
 Left alone, two things break:
 
 1. **Handicaps come out too low.** The handicap formula averages a player's
-   *best* N true scores, and a phantom 0 is almost always the best number in the
+   _best_ N true scores, and a phantom 0 is almost always the best number in the
    window. Those players' locked handicaps for the following season were
    computed partly from rounds they never played.
 2. **Any recompute puts the phantoms first.** Zero minus a double-digit
@@ -93,7 +93,7 @@ Left alone, two things break:
 score, keeping the recorded place and points exactly as the league recorded
 them.
 
-Ten *other* rows also have True Score = 0 and were left alone — those are
+Ten _other_ rows also have True Score = 0 and were left alone — those are
 genuine even-par rounds, distinguishable because their recorded net score is
 internally consistent. The discriminator is the sheet's own broken net formula,
 not the zero itself.
@@ -103,11 +103,11 @@ not the zero itself.
 The ported rules in `lib/domain/` were run against all 97 played events and
 compared to what the spreadsheet recorded.
 
-| | Before the phantom fix | After |
-|---|---|---|
-| Net score | 92 / 97 | **97 / 97** |
-| Place | 84 / 97 | 92 / 97 |
-| Points | 90 / 97 | 95 / 97 |
+|           | Before the phantom fix | After       |
+| --------- | ---------------------- | ----------- |
+| Net score | 92 / 97                | **97 / 97** |
+| Place     | 84 / 97                | 92 / 97     |
+| Points    | 90 / 97                | 95 / 97     |
 
 Net score now agrees on every event in league history, which is the strongest
 available evidence that the scoring formula was ported faithfully —
@@ -131,7 +131,7 @@ Five events still disagree on place. Every one was inspected individually:
 None of this changes any stored result. Historical rows keep their recorded
 place and points verbatim and are never recomputed — that rule is enforced by
 `scores.source` and honoured by the recompute engine. The comparison is a test
-of the *port*, not a proposal to rewrite anyone's remembered finish.
+of the _port_, not a proposal to rewrite anyone's remembered finish.
 
 ## Seattle
 
@@ -151,11 +151,11 @@ season/source groups matched exactly.
 
 Re-deriving Seattle's history with the ported engine:
 
-| | |
-|---|---|
+|           |                    |
+| --------- | ------------------ |
 | Net score | **12 / 12 events** |
-| Place | **12 / 12 events** |
-| Points | **12 / 12 events** |
+| Place     | **12 / 12 events** |
+| Points    | **12 / 12 events** |
 
 A clean sweep, which is a useful independent check on the port: Seattle's
 records were produced by the old app's own calculation rather than by years of
@@ -194,10 +194,10 @@ Once accounts exist, the roles to set are:
 - **`aagla-seattle`** — Josh as `owner`. The Seattle sheet's `adminEmails` was
   empty, so there is nobody else to carry over.
 
-Note that Josh needs a membership row in *each* league; the roles are per-league
+Note that Josh needs a membership row in _each_ league; the roles are per-league
 by design.
 
 The original spreadsheet's other tabs — `AAGLA OVERVIEW`, `Event Scores`,
-`Free Strokes (FS)`, `Data Admin`, the per-year sheets — were the *inputs* to
+`Free Strokes (FS)`, `Data Admin`, the per-year sheets — were the _inputs_ to
 the 2026 Apps Script import and are not needed again. They stay in the sheet as
 an archive.

@@ -4,7 +4,11 @@ import { currentYearOf, getHandicaps, getLeague, getSeasons } from '@/lib/data/q
 import { Badge, Card, Empty, fmt } from '@/components/ui';
 import { Avatar } from '@/components/avatar';
 import { InactiveToggle, NavSelect } from '@/components/selectors';
-import { SortableTable, type SortableColumn, type SortableRow } from '@/components/sortable-table';
+import {
+  SortableTable,
+  type SortableColumn,
+  type SortableRow,
+} from '@/components/sortable-table';
 import { TableHint } from '@/components/table-hint';
 import { resolveShowInactive } from '@/lib/prefs';
 
@@ -25,9 +29,13 @@ export default async function HandicapsPage({
   if (seasons.length === 0) return <Empty>No seasons yet.</Empty>;
   const years = seasons.map((s) => s.year);
   const year =
-    yearParam && years.includes(Number(yearParam)) ? Number(yearParam) : (currentYearOf(seasons) as number);
+    yearParam && years.includes(Number(yearParam))
+      ? Number(yearParam)
+      : (currentYearOf(seasons) as number);
   const allHandicaps = await getHandicaps(league.id, year);
-  const handicaps = showInactive ? allHandicaps : allHandicaps.filter((h) => h.status === 'active');
+  const handicaps = showInactive
+    ? allHandicaps
+    : allHandicaps.filter((h) => h.status === 'active');
 
   const columns: SortableColumn[] = [
     { key: 'player', label: 'Player', sortable: true },
@@ -70,7 +78,10 @@ export default async function HandicapsPage({
           value={String(year)}
           options={years.map((y) => ({ value: String(y), label: String(y) }))}
           hrefs={Object.fromEntries(
-            years.map((y): [string, string] => [String(y), `/${slug}/handicaps?year=${y}`]),
+            years.map((y): [string, string] => [
+              String(y),
+              `/${slug}/handicaps?year=${y}`,
+            ]),
           )}
         />
         <InactiveToggle show={showInactive} />
@@ -78,9 +89,9 @@ export default async function HandicapsPage({
 
       <Card title={`${year} handicaps`}>
         <TableHint>
-          Locked for the season: the average of a player&rsquo;s best 3 true scores from their
-          last 7 Event or Major rounds of the previous year, rounded to the nearest whole
-          stroke. A negative figure means the player gives strokes back.
+          Locked for the season: the average of a player&rsquo;s best 3 true scores from
+          their last 7 Event or Major rounds of the previous year, rounded to the
+          nearest whole stroke. A negative figure means the player gives strokes back.
         </TableHint>
         {handicaps.length === 0 ? (
           <Empty>No handicaps locked for {year} yet.</Empty>

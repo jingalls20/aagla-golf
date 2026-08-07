@@ -24,7 +24,9 @@ export async function getSeasonRankOf(
   const rows = (data ?? []) as unknown as {
     player_id: string;
     event_points: string | number | null;
-    events: { event_type: EventType; season_id: string } | { event_type: EventType; season_id: string }[];
+    events:
+      | { event_type: EventType; season_id: string }
+      | { event_type: EventType; season_id: string }[];
   }[];
   const forStandings = rows
     .map((r) => {
@@ -36,7 +38,12 @@ export async function getSeasonRankOf(
         eventPoints: r.event_points,
       };
     })
-    .filter((r) => r.seasonId === seasonId && r.eventType !== 'championship' && r.eventPoints !== null)
+    .filter(
+      (r) =>
+        r.seasonId === seasonId &&
+        r.eventType !== 'championship' &&
+        r.eventPoints !== null,
+    )
     .map((r) => ({ playerId: r.playerId, eventPoints: Number(r.eventPoints) }));
   const standings = computeStandings(forStandings);
   return new Map(standings.map((s) => [s.playerId, s.seasonRank]));

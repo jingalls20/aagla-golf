@@ -14,8 +14,5 @@ import { SUPABASE_ANON_KEY, SUPABASE_URL } from './config';
  * server.ts. Run `npm run db:types` and it can come back.
  */
 export function createClient() {
-  return createBrowserClient(
-    SUPABASE_URL,
-    SUPABASE_ANON_KEY,
-  );
+  return createBrowserClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 }
