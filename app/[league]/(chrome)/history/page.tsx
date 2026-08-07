@@ -99,7 +99,7 @@ export default async function HistoryPage({
     { key: 'rank', label: '#', align: 'right', sortable: true },
     { key: 'player', label: 'Player', sortable: true },
     { key: 'points', label: 'Event Points', align: 'right', sortable: true },
-    { key: 'played', label: 'Played', align: 'right', sortable: true },
+    { key: 'played', label: 'Events Played', align: 'right', sortable: true },
     {
       key: 'championshipStart',
       label: 'Championship start',

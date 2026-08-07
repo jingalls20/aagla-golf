@@ -70,7 +70,7 @@ export default async function BoardPage({
                   Points
                 </th>
                 <th className="border-b border-slate-200 pb-1 text-right dark:border-slate-800">
-                  Played
+                  Events Played
                 </th>
               </tr>
             </thead>
