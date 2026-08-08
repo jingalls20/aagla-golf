@@ -186,7 +186,8 @@ describe('careerSummary', () => {
       currentYear: 2026,
     });
     expect(text).toContain('3 rounds');
-    expect(text).toContain('2 wins');
+    // One kind of win, so no breakdown is needed.
+    expect(text).toContain('2 events won.');
   });
 
   it('lists championships with the years they were won', () => {
@@ -218,8 +219,21 @@ describe('careerSummary', () => {
       ],
       currentYear: 2026,
     });
-    expect(text).toContain('2 Championships (2016, 2025) and 2 other wins');
-    expect(text).not.toContain('4 wins');
+    // Four firsts stated as one total broken down, not as separate figures
+    // that a reader would add up to six.
+    expect(text).toContain(
+      '4 wins in all: 1 event, 1 major and 2 Championships (2016, 2025)',
+    );
+  });
+
+  it('skips the breakdown when there is only one kind of win', () => {
+    const text = careerSummary({
+      name: 'One Major',
+      chapters: [chapter('Iowa', [round({ eventType: 'major', place: 1 })])],
+      currentYear: 2026,
+    });
+    expect(text).toContain('1 major won.');
+    expect(text).not.toContain('in all');
   });
 
   it('falls back to podiums when there are no wins', () => {

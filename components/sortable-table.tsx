@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { TableWrap } from './ui';
 
@@ -14,7 +14,9 @@ import { TableWrap } from './ui';
  * to cross that boundary; React can serialize JSX and plain data, not
  * functions). So the server page does the rendering and the sort-key
  * extraction up front, and this component only ever touches plain data:
- * `cells` for what to show and `sortValues` for how to order it.
+ * `cells` for what to show and `sortValues` for how to order it. A row's
+ * expanded `detail` follows the same rule: it arrives as already-rendered JSX,
+ * not a callback.
  */
 
 const ALIGN = {
@@ -39,6 +41,9 @@ export interface SortableRow {
   cells: Record<string, ReactNode>;
   /** Plain sort keys for each sortable column, keyed by column key. */
   sortValues?: Record<string, string | number | null>;
+  /** Pre-rendered content revealed when the row is expanded. A row without
+   *  one is not expandable. */
+  detail?: ReactNode;
 }
 
 type SortState = { key: string; dir: 'asc' | 'desc' } | null;
@@ -46,11 +51,18 @@ type SortState = { key: string; dir: 'asc' | 'desc' } | null;
 export function SortableTable({
   columns,
   rows,
+  defaultSort = null,
 }: {
   columns: SortableColumn[];
   rows: SortableRow[];
+  /** Initial ordering. Cycling a column past descending returns here rather
+   *  than to the unsorted input order, so the table always has an order the
+   *  reader was promised. */
+  defaultSort?: SortState;
 }) {
-  const [sort, setSort] = useState<SortState>(null);
+  const [sort, setSort] = useState<SortState>(defaultSort);
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
+  const expandable = rows.some((r) => r.detail !== undefined);
 
   const sorted = useMemo(() => {
     if (!sort) return rows;
@@ -72,7 +84,15 @@ export function SortableTable({
     setSort((prev) => {
       if (!prev || prev.key !== key) return { key, dir: 'asc' };
       if (prev.dir === 'asc') return { key, dir: 'desc' };
-      return null;
+      return defaultSort;
+    });
+  }
+
+  function toggle(key: string) {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (!next.delete(key)) next.add(key);
+      return next;
     });
   }
 
@@ -80,6 +100,9 @@ export function SortableTable({
     <TableWrap>
       <thead>
         <tr>
+          {expandable ? (
+            <th className="w-6 border-b border-slate-200 pb-2 dark:border-slate-800" />
+          ) : null}
           {columns.map((c) => (
             <th
               key={c.key}
@@ -101,18 +124,72 @@ export function SortableTable({
         </tr>
       </thead>
       <tbody>
-        {sorted.map((row) => (
-          <tr key={row.key} className={row.className}>
-            {columns.map((c) => (
-              <td
-                key={c.key}
-                className={`border-b border-slate-100 py-2 pr-3 ${ALIGN[c.align ?? 'left']} dark:border-slate-800/60`}
+        {sorted.map((row) => {
+          const open = expanded.has(row.key);
+          const canOpen = row.detail !== undefined;
+          return (
+            <Fragment key={row.key}>
+              <tr
+                className={`${row.className ?? ''} ${
+                  canOpen
+                    ? 'cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/40'
+                    : ''
+                }`}
+                onClick={canOpen ? () => toggle(row.key) : undefined}
               >
-                {row.cells[c.key]}
-              </td>
-            ))}
-          </tr>
-        ))}
+                {expandable ? (
+                  <td className="border-b border-slate-100 py-2 dark:border-slate-800/60">
+                    {canOpen ? (
+                      <button
+                        type="button"
+                        aria-expanded={open}
+                        aria-label={open ? 'Collapse row' : 'Expand row'}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggle(row.key);
+                        }}
+                        className="flex h-5 w-5 items-center justify-center text-slate-400 hover:text-fairway-600"
+                      >
+                        <svg
+                          viewBox="0 0 20 20"
+                          aria-hidden
+                          className={`h-3.5 w-3.5 transition-transform duration-150 ${open ? 'rotate-90' : ''}`}
+                        >
+                          <path
+                            d="M7 4l6 6-6 6"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2.5"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                      </button>
+                    ) : null}
+                  </td>
+                ) : null}
+                {columns.map((c) => (
+                  <td
+                    key={c.key}
+                    className={`border-b border-slate-100 py-2 pr-3 ${ALIGN[c.align ?? 'left']} dark:border-slate-800/60`}
+                  >
+                    {row.cells[c.key]}
+                  </td>
+                ))}
+              </tr>
+              {open && canOpen ? (
+                <tr>
+                  <td
+                    colSpan={columns.length + (expandable ? 1 : 0)}
+                    className="border-b border-slate-100 bg-slate-50/70 p-0 dark:border-slate-800/60 dark:bg-slate-800/30"
+                  >
+                    <div className="px-3 py-3">{row.detail}</div>
+                  </td>
+                </tr>
+              ) : null}
+            </Fragment>
+          );
+        })}
       </tbody>
     </TableWrap>
   );

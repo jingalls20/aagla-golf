@@ -53,7 +53,11 @@ export interface SeasonLine {
 
 export interface CareerTotals {
   rounds: number;
+  /** Every first place, of any event type. eventWins + majorWins +
+   *  championships always equals this. */
   wins: number;
+  eventWins: number;
+  majorWins: number;
   podiums: number;
   championships: number;
   seasons: number;
@@ -137,6 +141,8 @@ export function careerTotals(rounds: CareerRound[]): CareerTotals {
   return {
     rounds: played.length,
     wins: played.filter((r) => r.place === 1).length,
+    eventWins: played.filter((r) => r.eventType === 'event' && r.place === 1).length,
+    majorWins: played.filter((r) => r.eventType === 'major' && r.place === 1).length,
     podiums: played.filter((r) => r.place !== null && r.place <= 3).length,
     championships: played.filter((r) => r.eventType === 'championship' && r.place === 1)
       .length,
@@ -225,31 +231,31 @@ export function careerSummary(input: CareerSummaryInput): string {
   );
 
   // 2. Silverware, only when there is some.
-  const honours: string[] = [];
-  // `totals.wins` counts every first place, Championships included. Listing
-  // both raw would count those twice -- "2 Championships and 14 wins" reads as
-  // sixteen. Majors aren't "events" either, so the remainder is just "wins".
-  const otherWins = totals.wins - totals.championships;
+  // The three kinds of win matter differently to this league, so all three get
+  // named. They're stated as a breakdown of one total rather than a list of
+  // separate figures -- "2 Championships and 14 wins" reads as sixteen, when
+  // the Championships are two OF the fourteen.
+  const kinds: string[] = [];
+  if (totals.eventWins > 0) kinds.push(plural(totals.eventWins, 'event'));
+  if (totals.majorWins > 0) kinds.push(plural(totals.majorWins, 'major'));
   if (totals.championships > 0) {
     const champYears = chapters
       .flatMap((c) => c.lines)
       .filter((l) => l.championship === 'won')
       .map((l) => l.year)
       .sort((a, b) => a - b);
-    honours.push(
+    kinds.push(
       `${plural(totals.championships, 'Championship')}` +
         (champYears.length ? ` (${[...new Set(champYears)].join(', ')})` : ''),
     );
   }
-  if (otherWins > 0) {
-    honours.push(
-      totals.championships > 0
-        ? `${plural(otherWins, 'other win')}`
-        : `${plural(otherWins, 'win')}`,
+  if (totals.wins > 0) {
+    // A single win needs no breakdown; "1 win in all: 1 major" is silly.
+    sentences.push(
+      kinds.length > 1
+        ? `${plural(totals.wins, 'win')} in all: ${listWords(kinds)}.`
+        : `${listWords(kinds)} won.`,
     );
-  }
-  if (honours.length > 0) {
-    sentences.push(`The cabinet holds ${listWords(honours)}.`);
   } else if (totals.podiums > 0) {
     sentences.push(
       `No wins yet, but ${plural(totals.podiums, 'top-three finish', 'top-three finishes')}.`,
