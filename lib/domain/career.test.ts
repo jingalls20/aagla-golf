@@ -186,7 +186,7 @@ describe('careerSummary', () => {
       currentYear: 2026,
     });
     expect(text).toContain('3 rounds');
-    expect(text).toContain('2 event wins');
+    expect(text).toContain('2 wins');
   });
 
   it('lists championships with the years they were won', () => {
@@ -201,6 +201,25 @@ describe('careerSummary', () => {
       currentYear: 2026,
     });
     expect(text).toContain('1 Championship (2022)');
+  });
+
+  it('does not count a Championship win twice in the honours list', () => {
+    // Four firsts in total, two of which were Championships. Reporting
+    // "2 Championships and 4 wins" would read as six.
+    const text = careerSummary({
+      name: 'Double Counted',
+      chapters: [
+        chapter('Iowa', [
+          round({ year: 2016, eventType: 'championship', place: 1 }),
+          round({ year: 2025, eventType: 'championship', place: 1 }),
+          round({ year: 2017, eventType: 'event', place: 1 }),
+          round({ year: 2018, eventType: 'major', place: 1 }),
+        ]),
+      ],
+      currentYear: 2026,
+    });
+    expect(text).toContain('2 Championships (2016, 2025) and 2 other wins');
+    expect(text).not.toContain('4 wins');
   });
 
   it('falls back to podiums when there are no wins', () => {
@@ -329,7 +348,7 @@ describe('careerSummary', () => {
       ],
       currentYear: 2026,
     });
-    expect(text).toContain('steady off 11');
+    expect(text).toContain('The handicap has barely moved: 11 now');
   });
 
   it('notes when a player has stopped appearing', () => {

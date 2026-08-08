@@ -284,7 +284,11 @@ export default async function PlayerPage({
           hint={multi ? 'both chapters' : undefined}
         />
         <Stat label="Seasons" value={String(totals.seasons)} />
-        <Stat label="Wins" value={String(totals.wins)} />
+        <Stat
+          label="Wins"
+          value={String(totals.wins)}
+          hint={totals.championships > 0 ? 'incl. championships' : undefined}
+        />
         <Stat label="Top 3" value={String(totals.podiums)} />
         <Stat label="Championships" value={String(totals.championships)} />
         <Stat label="Best round" value={toPar(totals.bestNet)} hint="net" />

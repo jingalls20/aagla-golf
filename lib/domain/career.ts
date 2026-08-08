@@ -226,6 +226,10 @@ export function careerSummary(input: CareerSummaryInput): string {
 
   // 2. Silverware, only when there is some.
   const honours: string[] = [];
+  // `totals.wins` counts every first place, Championships included. Listing
+  // both raw would count those twice -- "2 Championships and 14 wins" reads as
+  // sixteen. Majors aren't "events" either, so the remainder is just "wins".
+  const otherWins = totals.wins - totals.championships;
   if (totals.championships > 0) {
     const champYears = chapters
       .flatMap((c) => c.lines)
@@ -237,7 +241,13 @@ export function careerSummary(input: CareerSummaryInput): string {
         (champYears.length ? ` (${[...new Set(champYears)].join(', ')})` : ''),
     );
   }
-  if (totals.wins > 0) honours.push(`${plural(totals.wins, 'event win')}`);
+  if (otherWins > 0) {
+    honours.push(
+      totals.championships > 0
+        ? `${plural(otherWins, 'other win')}`
+        : `${plural(otherWins, 'win')}`,
+    );
+  }
   if (honours.length > 0) {
     sentences.push(`The cabinet holds ${listWords(honours)}.`);
   } else if (totals.podiums > 0) {
@@ -290,8 +300,8 @@ export function careerSummary(input: CareerSummaryInput): string {
       );
     } else {
       sentences.push(
-        `Remarkably steady off ${to.handicap}${where2}, within a stroke of ` +
-          `where ${first} started.`,
+        `The handicap has barely moved${where2}: ${to.handicap} now, within ` +
+          `a stroke of where it started.`,
       );
     }
   }
