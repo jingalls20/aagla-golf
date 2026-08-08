@@ -36,6 +36,8 @@ const SIZES = {
   sm: 'h-6 w-6 text-[10px]',
   md: 'h-9 w-9 text-xs',
   lg: 'h-14 w-14 text-base',
+  // The card portrait on a player's own page.
+  xl: 'h-28 w-28 text-3xl sm:h-32 sm:w-32 sm:text-4xl',
 } as const;
 
 export function Avatar({

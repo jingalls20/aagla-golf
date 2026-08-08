@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { computeStandings } from '@/lib/domain/standings';
 import { computeHandicap } from '@/lib/domain/handicap';
+import type { CareerRound } from '@/lib/domain/career';
 import type {
   EventType,
   HistoricalRound,
@@ -447,55 +448,34 @@ export async function getEventResults(eventId: string): Promise<ScoreRow[]> {
     .sort((a, b) => (a.place ?? 999) - (b.place ?? 999));
 }
 
-export interface PlayerProfile {
-  id: string;
-  name: string;
+export interface ChapterCareer {
+  leagueId: string;
+  leagueSlug: string;
+  leagueName: string;
+  chapter: string | null;
+  playerId: string;
   status: 'active' | 'inactive';
-  photoUrl: string | null;
   firstYear: number | null;
-  rounds: {
-    year: number;
-    eventType: EventType;
-    eventName: string | null;
-    sequence: number;
-    trueScore: number | null;
-    fsApplied: number | null;
-    netScore: number | null;
-    place: number | null;
-    eventPoints: number | null;
-  }[];
+  photoUrl: string | null;
+  rounds: CareerRound[];
   handicapHistory: { year: number; fs: number }[];
 }
 
-export async function getPlayerProfile(
-  leagueId: string,
-  playerId: string,
-): Promise<PlayerProfile | null> {
-  const supabase = await createClient();
+export interface PlayerCareer {
+  name: string;
+  photoUrl: string | null;
+  /** The chapter whose page this is, always first. */
+  chapters: ChapterCareer[];
+}
 
-  const { data: player } = await supabase
-    .from('players')
-    .select('id, name, status, first_year, photo_url')
-    .eq('league_id', leagueId)
-    .eq('id', playerId)
-    .maybeSingle();
-  if (!player) return null;
+/** Names are matched across chapters case- and whitespace-insensitively,
+ *  because the two sheets were maintained by different people. */
+function normaliseName(name: string): string {
+  return name.trim().replace(/\s+/g, ' ').toLowerCase();
+}
 
-  const [{ data: scoreRows }, { data: handicapRows }] = await Promise.all([
-    supabase
-      .from('scores')
-      .select(
-        'true_score, fs_applied, net_score, place, event_points, ' +
-          'events!inner(name, event_type, sequence, seasons!inner(year))',
-      )
-      .eq('player_id', playerId),
-    supabase
-      .from('handicaps')
-      .select('fs, seasons!inner(year)')
-      .eq('player_id', playerId),
-  ]);
-
-  const rounds = ((scoreRows ?? []) as unknown as Record<string, unknown>[])
+function mapRounds(rows: unknown[]): CareerRound[] {
+  return (rows as Record<string, unknown>[])
     .map((r) => {
       const ev = r.events as {
         name: string | null;
@@ -515,36 +495,155 @@ export async function getPlayerProfile(
         eventPoints: num(r.event_points),
       };
     })
-    .sort((a, b) => a.sequence - b.sequence);
+    .sort((a, b) => a.year - b.year || a.sequence - b.sequence);
+}
 
-  const handicapHistory = ((handicapRows ?? []) as unknown as Record<string, unknown>[])
+function mapHandicaps(rows: unknown[]): { year: number; fs: number }[] {
+  return (rows as Record<string, unknown>[])
     .map((r) => {
       const s = r.seasons as { year: number } | { year: number }[];
       return {
         year: Array.isArray(s) ? s[0].year : s.year,
         // Handicaps are whole strokes; round on every read so a value locked
-        // before this was the rule doesn't keep showing a decimal.
+        // before that was the rule doesn't keep showing a decimal.
         fs: Math.round(num(r.fs) ?? 0),
       };
     })
     .sort((a, b) => a.year - b.year);
+}
 
-  const p = player as unknown as {
+/**
+ * A player's whole career, including any chapter they also played in.
+ *
+ * The five people who turn out for both AAGLA chapters have a deliberately
+ * separate `players` row in each, because a handicap and a standing belong to
+ * the chapter they were earned in. This does not merge those rows -- it reads
+ * both and hands them back side by side, so the page can total the counting
+ * stats while keeping the rate stats apart. Matching is on name, which is the
+ * only thing the two chapters share; there is no cross-chapter identity in the
+ * schema yet.
+ *
+ * Nothing here filters by permission. Row-level security decides which leagues
+ * this client can see, so a sibling chapter the viewer has no access to simply
+ * doesn't come back.
+ */
+export async function getPlayerCareer(
+  leagueId: string,
+  playerId: string,
+): Promise<PlayerCareer | null> {
+  const supabase = await createClient();
+
+  const { data: player } = await supabase
+    .from('players')
+    .select('id, league_id, name, status, first_year, photo_url')
+    .eq('league_id', leagueId)
+    .eq('id', playerId)
+    .maybeSingle();
+  if (!player) return null;
+
+  const self = player as unknown as {
     id: string;
+    league_id: string;
     name: string;
     status: 'active' | 'inactive';
     first_year: number | null;
     photo_url: string | null;
   };
 
+  // Every same-named row in any chapter, this one included. `ilike` without
+  // wildcards is an exact but case-insensitive match; the trim/collapse below
+  // catches the rest.
+  const { data: twins } = await supabase
+    .from('players')
+    .select('id, league_id, name, status, first_year, photo_url')
+    .ilike('name', self.name.trim());
+
+  const siblings = (
+    (twins ?? []) as unknown as {
+      id: string;
+      league_id: string;
+      name: string;
+      status: 'active' | 'inactive';
+      first_year: number | null;
+      photo_url: string | null;
+    }[]
+  ).filter((p) => normaliseName(p.name) === normaliseName(self.name));
+
+  // Guard against a name collision inside one chapter: only ever take this
+  // player from their own league, and one row per other league.
+  const byLeague = new Map<string, (typeof siblings)[number]>();
+  byLeague.set(self.league_id, self);
+  for (const s of siblings) {
+    if (s.league_id !== self.league_id && !byLeague.has(s.league_id)) {
+      byLeague.set(s.league_id, s);
+    }
+  }
+
+  const ids = [...byLeague.values()].map((p) => p.id);
+  const leagueIds = [...byLeague.keys()];
+
+  const [{ data: scoreRows }, { data: handicapRows }, { data: leagueRows }] =
+    await Promise.all([
+      supabase
+        .from('scores')
+        .select(
+          'player_id, true_score, fs_applied, net_score, place, event_points, ' +
+            'events!inner(name, event_type, sequence, seasons!inner(year))',
+        )
+        .in('player_id', ids),
+      supabase
+        .from('handicaps')
+        .select('player_id, fs, seasons!inner(year)')
+        .in('player_id', ids),
+      supabase.from('leagues').select('id, slug, name, chapter').in('id', leagueIds),
+    ]);
+
+  const leagues = new Map(
+    (
+      (leagueRows ?? []) as unknown as {
+        id: string;
+        slug: string;
+        name: string;
+        chapter: string | null;
+      }[]
+    ).map((l) => [l.id, l]),
+  );
+
+  const allScores = (scoreRows ?? []) as unknown as Record<string, unknown>[];
+  const allHandicaps = (handicapRows ?? []) as unknown as Record<string, unknown>[];
+
+  const chapters: ChapterCareer[] = [];
+  for (const p of byLeague.values()) {
+    const league = leagues.get(p.league_id);
+    // RLS hid the league, so there is nothing to label this chapter with.
+    if (!league) continue;
+    chapters.push({
+      leagueId: p.league_id,
+      leagueSlug: league.slug,
+      leagueName: league.name,
+      chapter: league.chapter,
+      playerId: p.id,
+      status: p.status,
+      firstYear: p.first_year,
+      photoUrl: p.photo_url,
+      rounds: mapRounds(allScores.filter((r) => r.player_id === p.id)),
+      handicapHistory: mapHandicaps(allHandicaps.filter((r) => r.player_id === p.id)),
+    });
+  }
+
+  // The chapter whose page this is leads; any others follow by name.
+  chapters.sort((a, b) => {
+    if (a.leagueId === self.league_id) return -1;
+    if (b.leagueId === self.league_id) return 1;
+    return a.leagueName.localeCompare(b.leagueName);
+  });
+
+  if (chapters.length === 0) return null;
+
   return {
-    id: p.id,
-    name: p.name,
-    status: p.status,
-    photoUrl: p.photo_url,
-    firstYear: p.first_year,
-    rounds,
-    handicapHistory,
+    name: self.name,
+    photoUrl: chapters.find((c) => c.photoUrl)?.photoUrl ?? null,
+    chapters,
   };
 }
 
