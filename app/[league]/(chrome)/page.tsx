@@ -83,7 +83,19 @@ export default async function StandingsPage({
     { key: 'played', label: 'Events Played', align: 'right', sortable: true },
     {
       key: 'championshipStart',
-      label: 'Championship start',
+      // The figure moves with the standings, so it is a projection rather
+      // than a fact until the Championship is actually played. This screen
+      // only ever shows the current season, so the caveat is always true
+      // here -- the History tab, which shows finished seasons, says nothing
+      // of the sort.
+      label: (
+        <span className="inline-block leading-tight">
+          Championship start
+          <span className="block text-[10px] font-normal normal-case tracking-normal text-slate-400">
+            if the season ended today
+          </span>
+        </span>
+      ),
       align: 'right',
       sortable: true,
     },
