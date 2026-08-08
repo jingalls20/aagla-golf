@@ -1,9 +1,11 @@
 import { createClient } from '@/lib/supabase/server';
 import { computeStandings } from '@/lib/domain/standings';
-import { computeHandicap } from '@/lib/domain/handicap';
+import { handicapBreakdown, projectHandicap } from '@/lib/domain/handicap';
+import type { HandicapBreakdown } from '@/lib/domain/handicap';
 import type { CareerRound } from '@/lib/domain/career';
 import type {
   EventType,
+  HandicapResult,
   HistoricalRound,
   ScoreSource,
   StandingRow,
@@ -293,21 +295,34 @@ export interface HandicapRow {
   playerName: string;
   status: 'active' | 'inactive';
   photoUrl: string | null;
+  /** The locked figure actually in force this season. */
   fs: number;
   isOverride: boolean;
-  /** The specific prior-season rounds averaged to produce `fs` -- empty for an override. */
-  roundsUsed: { eventName: string | null; trueScore: number }[];
+  /** What the rule would have produced. Present even for an override, so the
+   *  screen can show how far a hand-set figure moved things. */
+  computed: HandicapBreakdown | null;
+  /** Same season last year, for movement. Null if there wasn't one. */
+  priorFs: number | null;
+  /** The rule applied to the season in progress: next year's figure if it
+   *  stopped today. Null once the season is over and nothing is in progress. */
+  projected: HandicapResult | null;
+  projectedRounds: number;
 }
 
 /**
- * A season's locked handicaps, each with the actual rounds that were
- * averaged to produce it.
+ * A season's locked handicaps, each with the full working behind it.
  *
- * The `handicaps` table only stores the final figure, not which rounds went
- * into it, so this re-derives that from the same prior-season scores and the
- * same `computeHandicap` rule the lock itself used (see `lockedHandicapFor`
- * in lib/actions/scores.ts) -- read-only, nothing here writes a lock or
- * changes one.
+ * The `handicaps` table stores only the final figure, so everything else here
+ * is re-derived from the same prior-season scores and the same season rules
+ * the lock used. That re-derivation is the point of the screen: a player
+ * trusts a number they can see the arithmetic for, and an admin needs to see
+ * how much an override moved it.
+ *
+ * Three seasons are in play at once and it is easy to conflate them. `year` is
+ * the season whose handicaps are locked; `year - 1` is where the rounds that
+ * produced them came from; and the season in progress feeds the projection for
+ * `year + 1`. When you are viewing a past season, the projection is that
+ * season's own successor, not today's.
  */
 export async function getHandicaps(
   leagueId: string,
@@ -323,10 +338,11 @@ export async function getHandicaps(
     .eq('league_id', leagueId);
 
   const rows = (data ?? []) as unknown as Record<string, unknown>[];
-  const filtered = rows.filter((r) => {
-    const s = r.seasons as { year: number } | { year: number }[];
-    return (Array.isArray(s) ? s[0].year : s.year) === year;
-  });
+  const yearOfSeason = (value: unknown) => {
+    const s = value as { year: number } | { year: number }[];
+    return Array.isArray(s) ? s[0].year : s.year;
+  };
+  const filtered = rows.filter((r) => yearOfSeason(r.seasons) === year);
   if (filtered.length === 0) return [];
 
   const seasonOf = (value: unknown) => {
@@ -337,68 +353,75 @@ export async function getHandicaps(
   };
   const season = seasonOf(filtered[0].seasons);
   const priorYear = year - 1;
+  const bestOf = season.handicap_best_of;
+  const windowEvents = season.handicap_window_events;
 
   // playerOf() below only returns name/status/photo_url; pull id separately.
   const idOf = (value: unknown) => {
     const p = value as { id: string } | { id: string }[];
     return Array.isArray(p) ? p[0].id : p.id;
   };
-  const nonOverridePlayerIds = filtered
-    .filter((r) => !r.is_override)
-    .map((r) => idOf(r.players));
+  const playerIds = filtered.map((r) => idOf(r.players));
 
-  const roundsByPlayer = new Map<string, HistoricalRound[]>();
-  if (nonOverridePlayerIds.length > 0) {
-    const { data: priorScores } = await supabase
+  // Rounds are fetched for everyone, overrides included. An override still
+  // needs its computed counterpart so the difference can be shown.
+  const [{ data: scoreRows }, { data: priorHandicapRows }] = await Promise.all([
+    supabase
       .from('scores')
       .select(
         'player_id, true_score, events!inner(name, event_type, sequence, seasons!inner(year))',
       )
       .eq('league_id', leagueId)
-      .in('player_id', nonOverridePlayerIds);
-    const priorRows = (priorScores ?? []) as unknown as Record<string, unknown>[];
-    for (const r of priorRows) {
-      const ev = r.events as {
-        name: string | null;
-        event_type: EventType;
-        sequence: number;
-        seasons: { year: number } | { year: number }[];
-      };
-      const y = Array.isArray(ev.seasons) ? ev.seasons[0].year : ev.seasons.year;
-      if (y !== priorYear || ev.event_type === 'championship' || r.true_score === null)
-        continue;
-      const pid = r.player_id as string;
-      const list = roundsByPlayer.get(pid) ?? [];
-      list.push({
-        eventId: '',
-        eventName: ev.name,
-        eventType: ev.event_type,
-        sequence: ev.sequence,
-        trueScore: Number(r.true_score),
-      });
-      roundsByPlayer.set(pid, list);
-    }
+      .in('player_id', playerIds),
+    supabase
+      .from('handicaps')
+      .select('fs, players!inner(id), seasons!inner(year)')
+      .eq('league_id', leagueId)
+      .in('player_id', playerIds),
+  ]);
+
+  // Two buckets per player: the season that fed this year's lock, and the one
+  // in progress that will feed next year's.
+  const sourceRounds = new Map<string, HistoricalRound[]>();
+  const currentRounds = new Map<string, HistoricalRound[]>();
+  for (const r of (scoreRows ?? []) as unknown as Record<string, unknown>[]) {
+    const ev = r.events as {
+      name: string | null;
+      event_type: EventType;
+      sequence: number;
+      seasons: { year: number } | { year: number }[];
+    };
+    const y = yearOfSeason(ev.seasons);
+    // Championship rounds never feed a handicap: they are played off a reduced
+    // one, so recycling them would compound the reduction year over year.
+    if (ev.event_type === 'championship' || r.true_score === null) continue;
+    const bucket = y === priorYear ? sourceRounds : y === year ? currentRounds : null;
+    if (!bucket) continue;
+    const pid = r.player_id as string;
+    const list = bucket.get(pid) ?? [];
+    list.push({
+      eventId: '',
+      eventName: ev.name,
+      eventType: ev.event_type,
+      sequence: ev.sequence,
+      trueScore: Number(r.true_score),
+    });
+    bucket.set(pid, list);
+  }
+
+  const priorFsByPlayer = new Map<string, number>();
+  for (const r of (priorHandicapRows ?? []) as unknown as Record<string, unknown>[]) {
+    if (yearOfSeason(r.seasons) !== priorYear) continue;
+    priorFsByPlayer.set(idOf(r.players), Math.round(num(r.fs) ?? 0));
   }
 
   return filtered
     .map((r) => {
       const player = playerOf(r.players);
       const playerId = idOf(r.players);
-      const isOverride = Boolean(r.is_override);
-      let roundsUsed: { eventName: string | null; trueScore: number }[] = [];
-      if (!isOverride) {
-        const rounds = roundsByPlayer.get(playerId) ?? [];
-        const result = computeHandicap(
-          rounds,
-          season.handicap_best_of,
-          season.handicap_window_events,
-          priorYear,
-        );
-        roundsUsed = result.roundsUsed.map((x) => ({
-          eventName: x.eventName,
-          trueScore: x.trueScore,
-        }));
-      }
+      const source = sourceRounds.get(playerId) ?? [];
+      const current = currentRounds.get(playerId) ?? [];
+
       return {
         playerId,
         playerName: player.name,
@@ -407,8 +430,15 @@ export async function getHandicaps(
         // Handicaps are whole strokes; round on every read so a value locked
         // before this was the rule doesn't keep showing a decimal.
         fs: Math.round(num(r.fs) ?? 0),
-        isOverride,
-        roundsUsed,
+        isOverride: Boolean(r.is_override),
+        computed: source.length
+          ? handicapBreakdown(source, bestOf, windowEvents, priorYear)
+          : null,
+        priorFs: priorFsByPlayer.get(playerId) ?? null,
+        projected: current.length
+          ? projectHandicap(current, bestOf, windowEvents, year)
+          : null,
+        projectedRounds: current.length,
       };
     })
     .sort((a, b) => a.playerName.localeCompare(b.playerName));

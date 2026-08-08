@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { championshipHandicap, computeHandicap, describeHandicap } from './handicap';
+import {
+  championshipHandicap,
+  computeHandicap,
+  consistencyOf,
+  describeHandicap,
+  eventLabelOf,
+  handicapBreakdown,
+  projectHandicap,
+  stdDevOf,
+} from './handicap';
 import type { HistoricalRound } from './types';
 
 /** Builds a run of rounds with ascending sequence and the given true scores. */
@@ -123,5 +132,156 @@ describe('describeHandicap', () => {
   it('appends the thin-window caveat when there is one', () => {
     const result = computeHandicap(rounds(10, 12, 14), 3, 7, 2025);
     expect(describeHandicap(result, 2025)).toContain('Only 3 of 2025');
+  });
+});
+
+describe('stdDevOf', () => {
+  it('needs at least two rounds to mean anything', () => {
+    expect(stdDevOf([])).toBeNull();
+    expect(stdDevOf([5])).toBeNull();
+  });
+
+  it('is zero when every round is identical', () => {
+    expect(stdDevOf([7, 7, 7, 7])).toBe(0);
+  });
+
+  it('uses the population formula, not the sample one', () => {
+    // Sample sd here would be 2.16; population is 1.87.
+    expect(stdDevOf([2, 4, 4, 4, 5, 5, 7, 9])).toBe(2);
+    expect(stdDevOf([4, 8])).toBe(2);
+  });
+});
+
+describe('consistencyOf', () => {
+  it('sorts players into three coarse buckets', () => {
+    expect(consistencyOf(0)).toBe('steady');
+    expect(consistencyOf(2.9)).toBe('steady');
+    expect(consistencyOf(3)).toBe('variable');
+    expect(consistencyOf(5.9)).toBe('variable');
+    expect(consistencyOf(6)).toBe('streaky');
+    expect(consistencyOf(null)).toBeNull();
+  });
+});
+
+describe('eventLabelOf', () => {
+  it('prefers a real name', () => {
+    expect(eventLabelOf({ eventName: 'Spring Open', sequence: 3 })).toBe('Spring Open');
+  });
+
+  it('falls back to the event number when unnamed', () => {
+    expect(eventLabelOf({ eventName: null, sequence: 3 })).toBe('#3');
+    expect(eventLabelOf({ eventName: '', sequence: 7 })).toBe('#7');
+    // Whitespace is not a name.
+    expect(eventLabelOf({ eventName: '   ', sequence: 2 })).toBe('#2');
+  });
+});
+
+describe('handicapBreakdown', () => {
+  /** Rounds in sequence order with the given scores. */
+  const rs = (...scores: number[]): HistoricalRound[] =>
+    scores.map((trueScore, i) => ({
+      eventId: `e${i}`,
+      eventName: null,
+      eventType: 'event' as const,
+      sequence: i + 1,
+      trueScore,
+    }));
+
+  it('agrees with computeHandicap on the figure itself', () => {
+    const rounds = rs(10, 4, 8, 6, 12, 5, 9);
+    expect(handicapBreakdown(rounds, 3, 7, 2025).fs).toBe(
+      computeHandicap(rounds, 3, 7, 2025).fs,
+    );
+  });
+
+  it('marks exactly the rounds that counted', () => {
+    // Window is all 5; best 3 are 4, 5, 6.
+    const b = handicapBreakdown(rs(10, 4, 6, 12, 5), 3, 7, 2025);
+    expect(
+      b.considered
+        .filter((r) => r.used)
+        .map((r) => r.trueScore)
+        .sort(),
+    ).toEqual([4, 5, 6]);
+    expect(
+      b.considered
+        .filter((r) => !r.used)
+        .map((r) => r.trueScore)
+        .sort(),
+    ).toEqual([10, 12]);
+  });
+
+  it('marks only one of two rounds tied on the same score', () => {
+    // Best 2 of 6, 6, 9 -- both sixes tie, but only two rounds may count.
+    const b = handicapBreakdown(rs(6, 6, 9), 2, 7, 2025);
+    expect(b.considered.filter((r) => r.used)).toHaveLength(2);
+    expect(b.considered.filter((r) => r.used).map((r) => r.trueScore)).toEqual([6, 6]);
+  });
+
+  it('separates rounds that fell outside the window', () => {
+    const b = handicapBreakdown(rs(1, 2, 3, 4, 5, 6, 7, 8, 9), 3, 4, 2025);
+    expect(b.considered.map((r) => r.trueScore)).toEqual([6, 7, 8, 9]);
+    expect(b.outsideWindow.map((r) => r.trueScore)).toEqual([1, 2, 3, 4, 5]);
+  });
+
+  it('averages the whole window for the all-scores figure', () => {
+    // Best 3 of (4, 6, 8, 10, 12) = 6; all five average 8.
+    const b = handicapBreakdown(rs(4, 6, 8, 10, 12), 3, 7, 2025);
+    expect(b.fs).toBe(6);
+    expect(b.allConsideredFs).toBe(8);
+  });
+
+  it('shows how far the figure leans on the single best round', () => {
+    // Best 3 of (2, 9, 10, 11) = 7. Drop the 2 and it becomes 10.
+    const b = handicapBreakdown(rs(2, 9, 10, 11), 3, 7, 2025);
+    expect(b.fs).toBe(7);
+    expect(b.withoutBestFs).toBe(10);
+  });
+
+  it('reports spread and consistency across the window', () => {
+    const steady = handicapBreakdown(rs(6, 7, 6, 7), 3, 7, 2025);
+    expect(steady.spread).toBe(1);
+    expect(steady.consistency).toBe('steady');
+
+    const wild = handicapBreakdown(rs(0, 20, 2, 18), 3, 7, 2025);
+    expect(wild.spread).toBe(20);
+    expect(wild.consistency).toBe('streaky');
+  });
+
+  it('is safe for a player with no history at all', () => {
+    const b = handicapBreakdown([], 3, 7, 2025);
+    expect(b.fs).toBe(0);
+    expect(b.considered).toEqual([]);
+    expect(b.outsideWindow).toEqual([]);
+    expect(b.allConsideredFs).toBeNull();
+    expect(b.withoutBestFs).toBeNull();
+    expect(b.consistency).toBeNull();
+  });
+
+  it('leaves the alternatives undefined for a single round', () => {
+    const b = handicapBreakdown(rs(5), 3, 7, 2025);
+    expect(b.fs).toBe(5);
+    expect(b.allConsideredFs).toBe(5);
+    expect(b.withoutBestFs).toBeNull();
+    expect(b.stdDev).toBeNull();
+  });
+});
+
+describe('projectHandicap', () => {
+  it('applies the ordinary rule to the season in progress', () => {
+    const partial: HistoricalRound[] = [4, 8, 6].map((trueScore, i) => ({
+      eventId: `e${i}`,
+      eventName: null,
+      eventType: 'event' as const,
+      sequence: i + 1,
+      trueScore,
+    }));
+    expect(projectHandicap(partial, 3, 7, 2026).fs).toBe(6);
+  });
+
+  it('returns the zero default before anyone has played', () => {
+    const p = projectHandicap([], 3, 7, 2026);
+    expect(p.fs).toBe(0);
+    expect(p.note).toContain('No 2026 rounds found');
   });
 });

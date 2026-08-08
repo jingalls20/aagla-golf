@@ -121,3 +121,151 @@ export function describeHandicap(
 
   return result.note ? `${base} ${result.note}` : base;
 }
+
+/** A window round, marked with whether it counted toward the figure. */
+export interface ConsideredRound extends HistoricalRound {
+  used: boolean;
+}
+
+/**
+ * Everything behind one handicap: what counted, what didn't, and what the
+ * figure would have been under other rules.
+ *
+ * The alternatives exist to answer "how solid is this number?". A handicap
+ * built on one exceptional round moves a long way when that round is removed;
+ * one built on a tight cluster barely moves at all. Same figure, very
+ * different confidence, and nothing on the old screen distinguished them.
+ */
+export interface HandicapBreakdown extends HandicapResult {
+  /** The window -- most recent `windowEvents` rounds -- each marked used. */
+  considered: ConsideredRound[];
+  /** Prior-season rounds that fell outside the window entirely. */
+  outsideWindow: HistoricalRound[];
+  /** Average of every round in the window rather than only the best N. */
+  allConsideredFs: number | null;
+  /** The figure with the single best round discarded. */
+  withoutBestFs: number | null;
+  /** Worst minus best across the window. */
+  spread: number | null;
+  /** Population standard deviation across the window, to one decimal. */
+  stdDev: number | null;
+  consistency: Consistency | null;
+}
+
+export type Consistency = 'steady' | 'variable' | 'streaky';
+
+function mean(xs: number[]): number {
+  return xs.reduce((a, b) => a + b, 0) / xs.length;
+}
+
+/**
+ * Population standard deviation, not sample.
+ *
+ * The window is not a sample drawn from some larger set of rounds a player
+ * might have played -- it is the entire set the rule looks at. Bessel's
+ * correction would be answering a question nobody asked.
+ */
+export function stdDevOf(scores: number[]): number | null {
+  if (scores.length < 2) return null;
+  const m = mean(scores);
+  const variance = mean(scores.map((s) => (s - m) ** 2));
+  return Math.round(Math.sqrt(variance) * 10) / 10;
+}
+
+/**
+ * Plain-language reading of a player's spread.
+ *
+ * Thresholds are in strokes relative to par and deliberately coarse. The point
+ * is to separate "you can predict this player's afternoon" from "you cannot",
+ * not to imply the underlying number is precise enough to rank people by.
+ */
+export function consistencyOf(stdDev: number | null): Consistency | null {
+  if (stdDev === null) return null;
+  if (stdDev < 3) return 'steady';
+  if (stdDev < 6) return 'variable';
+  return 'streaky';
+}
+
+export function handicapBreakdown(
+  rounds: HistoricalRound[],
+  bestOf: number,
+  windowEvents: number,
+  sourceYearLabel: string | number,
+): HandicapBreakdown {
+  const result = computeHandicap(rounds, bestOf, windowEvents, sourceYearLabel);
+
+  const chronological = [...rounds].sort((a, b) => a.sequence - b.sequence);
+  const cut = Math.max(0, chronological.length - windowEvents);
+  const window = chronological.slice(cut);
+  const outsideWindow = chronological.slice(0, cut);
+
+  // Mark by identity within the window rather than by score, so two rounds of
+  // the same score don't both light up when only one of them counted.
+  const usedIdx = new Set<number>();
+  const byScore = window
+    .map((r, i) => ({ r, i }))
+    .sort((a, b) => a.r.trueScore - b.r.trueScore);
+  for (const { i } of byScore.slice(0, Math.min(bestOf, byScore.length))) {
+    usedIdx.add(i);
+  }
+  const considered: ConsideredRound[] = window.map((r, i) => ({
+    ...r,
+    used: usedIdx.has(i),
+  }));
+
+  const scores = window.map((r) => r.trueScore);
+  const allConsideredFs = scores.length ? roundHandicap(mean(scores)) : null;
+
+  // Drop the single best round, then re-apply the ordinary rule. If that
+  // leaves fewer rounds than `bestOf`, the rule already tolerates a short
+  // window, so this stays meaningful rather than becoming undefined.
+  let withoutBestFs: number | null = null;
+  if (window.length > 1) {
+    const sorted = [...window].sort((a, b) => a.trueScore - b.trueScore);
+    withoutBestFs = computeHandicap(
+      sorted.slice(1),
+      bestOf,
+      windowEvents,
+      sourceYearLabel,
+    ).fs;
+  }
+
+  const stdDev = stdDevOf(scores);
+
+  return {
+    ...result,
+    considered,
+    outsideWindow,
+    allConsideredFs,
+    withoutBestFs,
+    spread: scores.length ? Math.max(...scores) - Math.min(...scores) : null,
+    stdDev,
+    consistency: consistencyOf(stdDev),
+  };
+}
+
+/**
+ * What a player's handicap would be next season if the season ended today.
+ *
+ * Exactly the ordinary calculation, pointed at the season in progress instead
+ * of the finished one. It moves with every round posted, which is the point:
+ * it is the only figure on the screen that tells a player what this afternoon
+ * costs them next year.
+ */
+export function projectHandicap(
+  currentSeasonRounds: HistoricalRound[],
+  bestOf: number,
+  windowEvents: number,
+  seasonLabel: string | number,
+): HandicapResult {
+  return computeHandicap(currentSeasonRounds, bestOf, windowEvents, seasonLabel);
+}
+
+/** Event name where there is one, otherwise its number within the season. */
+export function eventLabelOf(round: {
+  eventName: string | null;
+  sequence: number;
+}): string {
+  const name = round.eventName?.trim();
+  return name ? name : `#${round.sequence}`;
+}
