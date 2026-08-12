@@ -397,6 +397,7 @@ export default async function PlayerPage({
             columns={seasonColumns(multi)}
             rows={seasonRows(tagged, multi)}
             defaultSort={{ key: 'year', dir: 'desc' }}
+            sticky
           />
         )}
       </Collapsible>
@@ -454,6 +455,7 @@ export default async function PlayerPage({
           <SortableTable
             {...recordTable(career.chapters, multi)}
             defaultSort={{ key: 'year', dir: 'desc' }}
+            sticky
           />
         )}
       </Collapsible>

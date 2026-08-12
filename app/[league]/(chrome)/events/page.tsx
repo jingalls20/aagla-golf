@@ -147,7 +147,7 @@ export default async function EventsPage({
         {results.length === 0 ? (
           <Empty>No scores recorded for this event yet.</Empty>
         ) : (
-          <SortableTable columns={columns} rows={rows} />
+          <SortableTable columns={columns} rows={rows} sticky />
         )}
       </Card>
     </div>

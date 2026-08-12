@@ -241,7 +241,7 @@ export default async function StandingsPage({
         {visibleStandings.length === 0 ? (
           <Empty>No results recorded for {year} yet.</Empty>
         ) : (
-          <SortableTable columns={standingsColumns} rows={standingsRows} />
+          <SortableTable columns={standingsColumns} rows={standingsRows} sticky />
         )}
       </Card>
 
@@ -257,7 +257,7 @@ export default async function StandingsPage({
         ) : gridRows.length === 0 ? (
           <Empty>No scores recorded for {year} yet.</Empty>
         ) : (
-          <SortableTable columns={gridColumns} rows={gridRows} />
+          <SortableTable columns={gridColumns} rows={gridRows} sticky />
         )}
       </Card>
     </div>

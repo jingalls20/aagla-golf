@@ -246,7 +246,7 @@ export default async function HistoryPage({
         {visibleStandings.length === 0 ? (
           <Empty>No results recorded for {year}.</Empty>
         ) : (
-          <SortableTable columns={standingsColumns} rows={standingsRows} />
+          <SortableTable columns={standingsColumns} rows={standingsRows} sticky />
         )}
       </Card>
 
@@ -259,7 +259,7 @@ export default async function HistoryPage({
         {played.length === 0 || gridRows.length === 0 ? (
           <Empty>No events played that season.</Empty>
         ) : (
-          <SortableTable columns={gridColumns} rows={gridRows} />
+          <SortableTable columns={gridColumns} rows={gridRows} sticky />
         )}
       </Card>
     </div>

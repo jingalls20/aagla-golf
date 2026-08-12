@@ -29,6 +29,12 @@ import type {
  *     no-show/DNP last-place placeholders -- from every score now on record
  *     for it, not just the ones this submit touched. Two admins editing the
  *     same event a week apart should not fight the recompute.
+ *
+ * An `onlyPlayerId` on the form narrows steps 2 and 3 to that one player,
+ * which is what the per-row Save buttons submit. Step 4 deliberately still
+ * runs over the whole field: place and points are relative, so one player's
+ * score changes everyone's standing in that event. Saving one row is about
+ * confining what gets *written*, never what gets recomputed.
  */
 export async function saveEventScores(formData: FormData): Promise<void> {
   const leagueId = String(formData.get('leagueId') ?? '');
@@ -80,9 +86,17 @@ export async function saveEventScores(formData: FormData): Promise<void> {
   // Players checked off as "did not play". Field names are `dnp_<playerId>`;
   // a DNP always wins over anything typed in that player's score field --
   // the score is ignored rather than saved alongside a contradictory DNP.
+  // Set by the per-row Save buttons. Everything typed on other rows is
+  // ignored rather than written, so entering scores one at a time cannot
+  // commit a half-typed figure sitting in a neighbouring input.
+  const onlyPlayerId = String(formData.get('onlyPlayerId') ?? '').trim();
+  const wanted = (playerId: string) => onlyPlayerId === '' || playerId === onlyPlayerId;
+
   const dnpPlayerIds = new Set<string>();
   for (const key of formData.keys()) {
-    if (key.startsWith('dnp_')) dnpPlayerIds.add(key.slice('dnp_'.length));
+    if (!key.startsWith('dnp_')) continue;
+    const playerId = key.slice('dnp_'.length);
+    if (wanted(playerId)) dnpPlayerIds.add(playerId);
   }
 
   // Entries the form actually filled in. Field names are `score_<playerId>`;
@@ -91,6 +105,7 @@ export async function saveEventScores(formData: FormData): Promise<void> {
   for (const [key, value] of formData.entries()) {
     if (!key.startsWith('score_')) continue;
     const playerId = key.slice('score_'.length);
+    if (!wanted(playerId)) continue;
     if (dnpPlayerIds.has(playerId)) continue;
     const raw = String(value).trim();
     if (raw === '') continue;
@@ -109,6 +124,7 @@ export async function saveEventScores(formData: FormData): Promise<void> {
   for (const [key, value] of formData.entries()) {
     if (!key.startsWith('diff_')) continue;
     const playerId = key.slice('diff_'.length);
+    if (!wanted(playerId)) continue;
     const raw = String(value).trim();
     if (raw === '') continue;
     const diff = Number(raw);

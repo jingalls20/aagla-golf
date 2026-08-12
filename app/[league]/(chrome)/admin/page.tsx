@@ -12,7 +12,7 @@ import { getEntryHandicaps, getSeasonRow, isLeagueAdmin } from '@/lib/data/admin
 import { saveEventScores, clearScore } from '@/lib/actions/scores';
 import { Card, Empty, TableWrap, Th, Td, fmt } from '@/components/ui';
 import { NavSelect } from '@/components/selectors';
-import { DnpScoreInput } from '@/components/dnp-score-input';
+import { ScoreEntryCells } from '@/components/score-entry-cells';
 import { TableHint } from '@/components/table-hint';
 import { ConfirmSubmitButton } from '@/components/confirm-button';
 
@@ -160,7 +160,12 @@ export default async function AdminPage({
           handicap. Saving recomputes place and points for the whole event, including
           no-show penalties once half the roster has posted a score or a DNP. Use{' '}
           <strong>Clear</strong> to remove a score entered by mistake entirely, rather
-          than saving over it.
+          than saving over it. Scores are <strong>total strokes over par</strong>, and
+          the <strong>Net</strong> column recalculates as you type so you can check a
+          figure before committing it. A <strong>Save</strong> button appears on any row
+          you change: it saves that one player, so you can enter scores one at a time as
+          they come in. It saves only that row — anything typed on other rows is left
+          alone, so use the button at the bottom to commit several at once.
         </TableHint>
 
         <form action={saveEventScores} className="space-y-4">
@@ -175,7 +180,22 @@ export default async function AdminPage({
                 <Th>Player</Th>
                 <Th align="right">Handicap</Th>
                 <Th align="right">Course diff.</Th>
-                <Th align="right">Score</Th>
+                <Th align="right" className="bg-fairway-50/60 dark:bg-fairway-900/20">
+                  <span className="inline-block leading-tight">
+                    Score
+                    <span className="block text-[10px] font-normal normal-case tracking-normal text-fairway-600 dark:text-fairway-50">
+                      total strokes over par
+                    </span>
+                  </span>
+                </Th>
+                <Th align="right">
+                  <span className="inline-block leading-tight">
+                    Net
+                    <span className="block text-[10px] font-normal normal-case tracking-normal text-slate-400">
+                      updates as you type
+                    </span>
+                  </span>
+                </Th>
                 <Th align="right">Current place</Th>
                 <Th align="right">Current points</Th>
                 <Th></Th>
@@ -202,23 +222,13 @@ export default async function AdminPage({
                         '—'
                       )}
                     </Td>
-                    <Td align="right">
-                      <input
-                        type="number"
-                        step="any"
-                        name={`diff_${p.id}`}
-                        defaultValue={existing?.courseDifferential || ''}
-                        placeholder="0"
-                        className="w-16 rounded-md border border-slate-200 bg-white px-2 py-1 text-right text-sm dark:border-slate-800 dark:bg-slate-900"
-                      />
-                    </Td>
-                    <Td align="right">
-                      <DnpScoreInput
-                        playerId={p.id}
-                        defaultScore={existing?.trueScore ?? ''}
-                        defaultDnp={existing?.source === 'dnp'}
-                      />
-                    </Td>
+                    <ScoreEntryCells
+                      playerId={p.id}
+                      defaultScore={existing?.trueScore ?? ''}
+                      defaultDiff={existing?.courseDifferential || ''}
+                      defaultDnp={existing?.source === 'dnp'}
+                      handicap={handicap ? handicap.fs : null}
+                    />
                     <Td align="right" muted>
                       {existing?.source === 'dnp' ? (
                         <span className="text-slate-400">DNP</span>
@@ -259,7 +269,7 @@ export default async function AdminPage({
             type="submit"
             className="rounded-md bg-fairway-600 px-4 py-2 text-sm font-medium text-white hover:bg-fairway-900"
           >
-            Save & recompute results
+            Save every row & recompute
           </button>
         </form>
       </Card>

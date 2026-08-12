@@ -2,7 +2,7 @@
 
 import { Fragment, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
-import { TableWrap } from './ui';
+import { STICKY, TableWrap } from './ui';
 
 /**
  * A table where every column marked `sortable` can be sorted by clicking its
@@ -52,6 +52,7 @@ export function SortableTable({
   columns,
   rows,
   defaultSort = null,
+  sticky = false,
 }: {
   columns: SortableColumn[];
   rows: SortableRow[];
@@ -59,6 +60,10 @@ export function SortableTable({
    *  than to the unsorted input order, so the table always has an order the
    *  reader was promised. */
   defaultSort?: SortState;
+  /** Pin the header row and the first column while the table is scrolled.
+   *  Worth it for anything wide enough to scroll sideways, where losing sight
+   *  of who a row belongs to makes the numbers meaningless. */
+  sticky?: boolean;
 }) {
   const [sort, setSort] = useState<SortState>(defaultSort);
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
@@ -97,18 +102,30 @@ export function SortableTable({
   }
 
   return (
-    <TableWrap>
+    <TableWrap sticky={sticky}>
       <thead>
         <tr>
           {expandable ? (
-            <th className="w-6 border-b border-slate-200 pb-2 dark:border-slate-800" />
+            <th
+              className={`w-6 border-b border-slate-200 pb-2 dark:border-slate-800 ${
+                sticky ? STICKY.expanderCorner : ''
+              }`}
+            />
           ) : null}
-          {columns.map((c) => (
+          {columns.map((c, i) => (
             <th
               key={c.key}
               onClick={c.sortable ? () => onSort(c.key) : undefined}
               className={`border-b border-slate-200 pb-2 pr-3 ${ALIGN[c.align ?? 'left']} text-xs font-semibold uppercase tracking-wide text-slate-500 dark:border-slate-800 ${
                 c.sortable ? 'cursor-pointer select-none hover:text-fairway-600' : ''
+              } ${
+                sticky
+                  ? i === 0
+                    ? expandable
+                      ? STICKY.cornerAfterExpander
+                      : STICKY.corner
+                    : STICKY.header
+                  : ''
               }`}
             >
               <span className="inline-flex items-center gap-1">
@@ -130,7 +147,10 @@ export function SortableTable({
           return (
             <Fragment key={row.key}>
               <tr
-                className={`${row.className ?? ''} ${
+                // The row carries an opaque background so that a pinned cell,
+                // which uses bg-inherit, has something real to take. Without
+                // it the columns sliding underneath show straight through.
+                className={`bg-white dark:bg-slate-900 ${row.className ?? ''} ${
                   canOpen
                     ? 'cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800/40'
                     : ''
@@ -138,7 +158,11 @@ export function SortableTable({
                 onClick={canOpen ? () => toggle(row.key) : undefined}
               >
                 {expandable ? (
-                  <td className="border-b border-slate-100 py-2 dark:border-slate-800/60">
+                  <td
+                    className={`border-b border-slate-100 py-2 dark:border-slate-800/60 ${
+                      sticky ? STICKY.expander : ''
+                    }`}
+                  >
                     {canOpen ? (
                       <button
                         type="button"
@@ -168,10 +192,16 @@ export function SortableTable({
                     ) : null}
                   </td>
                 ) : null}
-                {columns.map((c) => (
+                {columns.map((c, i) => (
                   <td
                     key={c.key}
-                    className={`border-b border-slate-100 py-2 pr-3 ${ALIGN[c.align ?? 'left']} dark:border-slate-800/60`}
+                    className={`border-b border-slate-100 py-2 pr-3 ${ALIGN[c.align ?? 'left']} dark:border-slate-800/60 ${
+                      sticky && i === 0
+                        ? expandable
+                          ? STICKY.columnAfterExpander
+                          : STICKY.column
+                        : ''
+                    }`}
                   >
                     {row.cells[c.key]}
                   </td>

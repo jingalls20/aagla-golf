@@ -359,6 +359,7 @@ export default async function HandicapsPage({
             columns={columns}
             rows={rows}
             defaultSort={{ key: 'player', dir: 'asc' }}
+            sticky
           />
         )}
       </Card>
