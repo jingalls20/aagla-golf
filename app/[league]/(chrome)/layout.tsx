@@ -4,12 +4,16 @@ import { getLeague } from '@/lib/data/queries';
 import { isLeagueAdmin } from '@/lib/data/admin';
 import { AuthBar } from '@/components/auth-bar';
 
+// Ordered by how often a member actually reaches for them: what's happening
+// now, then the number that governs their scoring, then how a given day
+// finished. Reference material -- the roster and finished seasons -- sits
+// after that, and Admin is appended last for the few who have it.
 const TABS = [
-  { href: '', label: 'Standings' },
-  { href: '/history', label: 'History' },
-  { href: '/events', label: 'Results' },
+  { href: '', label: 'Current Season' },
   { href: '/handicaps', label: 'Handicaps' },
+  { href: '/events', label: 'Results' },
   { href: '/players', label: 'Players' },
+  { href: '/history', label: 'History' },
 ];
 
 export default async function LeagueLayout({

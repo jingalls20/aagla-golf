@@ -246,7 +246,12 @@ export default async function HistoryPage({
         {visibleStandings.length === 0 ? (
           <Empty>No results recorded for {year}.</Empty>
         ) : (
-          <SortableTable columns={standingsColumns} rows={standingsRows} sticky />
+          <SortableTable
+            columns={standingsColumns}
+            rows={standingsRows}
+            sticky
+            pinFirstColumn={false}
+          />
         )}
       </Card>
 

@@ -241,7 +241,12 @@ export default async function StandingsPage({
         {visibleStandings.length === 0 ? (
           <Empty>No results recorded for {year} yet.</Empty>
         ) : (
-          <SortableTable columns={standingsColumns} rows={standingsRows} sticky />
+          <SortableTable
+            columns={standingsColumns}
+            rows={standingsRows}
+            sticky
+            pinFirstColumn={false}
+          />
         )}
       </Card>
 

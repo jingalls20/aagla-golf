@@ -53,6 +53,7 @@ export function SortableTable({
   rows,
   defaultSort = null,
   sticky = false,
+  pinFirstColumn = true,
 }: {
   columns: SortableColumn[];
   rows: SortableRow[];
@@ -60,10 +61,13 @@ export function SortableTable({
    *  than to the unsorted input order, so the table always has an order the
    *  reader was promised. */
   defaultSort?: SortState;
-  /** Pin the header row and the first column while the table is scrolled.
-   *  Worth it for anything wide enough to scroll sideways, where losing sight
-   *  of who a row belongs to makes the numbers meaningless. */
+  /** Pin the header row while the table is scrolled. */
   sticky?: boolean;
+  /** Also pin the first column. On by default, since it is usually the one
+   *  naming the row. Turn it off for a table narrow enough to read end to
+   *  end without scrolling sideways, where pinning buys nothing and only
+   *  adds a seam down the left. */
+  pinFirstColumn?: boolean;
 }) {
   const [sort, setSort] = useState<SortState>(defaultSort);
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
@@ -108,7 +112,7 @@ export function SortableTable({
           {expandable ? (
             <th
               className={`w-6 border-b border-slate-200 pb-2 dark:border-slate-800 ${
-                sticky ? STICKY.expanderCorner : ''
+                sticky ? (pinFirstColumn ? STICKY.expanderCorner : STICKY.header) : ''
               }`}
             />
           ) : null}
@@ -120,7 +124,7 @@ export function SortableTable({
                 c.sortable ? 'cursor-pointer select-none hover:text-fairway-600' : ''
               } ${
                 sticky
-                  ? i === 0
+                  ? i === 0 && pinFirstColumn
                     ? expandable
                       ? STICKY.cornerAfterExpander
                       : STICKY.corner
@@ -160,7 +164,7 @@ export function SortableTable({
                 {expandable ? (
                   <td
                     className={`border-b border-slate-100 py-2 dark:border-slate-800/60 ${
-                      sticky ? STICKY.expander : ''
+                      sticky && pinFirstColumn ? STICKY.expander : ''
                     }`}
                   >
                     {canOpen ? (
@@ -196,7 +200,7 @@ export function SortableTable({
                   <td
                     key={c.key}
                     className={`border-b border-slate-100 py-2 pr-3 ${ALIGN[c.align ?? 'left']} dark:border-slate-800/60 ${
-                      sticky && i === 0
+                      sticky && i === 0 && pinFirstColumn
                         ? expandable
                           ? STICKY.columnAfterExpander
                           : STICKY.column
