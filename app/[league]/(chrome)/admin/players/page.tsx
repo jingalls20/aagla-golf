@@ -2,7 +2,12 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getLeague, getPlayers } from '@/lib/data/queries';
 import { isLeagueAdmin } from '@/lib/data/admin';
-import { addPlayer, setPlayerStatus, updatePlayer } from '@/lib/actions/admin';
+import {
+  addPlayer,
+  setPlayerStatus,
+  updatePlayer,
+  uploadPlayerPhoto,
+} from '@/lib/actions/admin';
 import { Badge, Card, Empty, TableWrap, Th, Td } from '@/components/ui';
 import { Avatar } from '@/components/avatar';
 import { TableHint } from '@/components/table-hint';
@@ -48,7 +53,9 @@ export default async function PlayersAdminPage({
           starts. Marking someone inactive doesn&rsquo;t touch their history, it just
           leaves them off current screens. Edit a name only to fix a typo or spelling --
           it&rsquo;s how the league tells one player from another across every season on
-          record.
+          record. Set a face either way: paste a link in the <strong>Photo</strong>{' '}
+          field, or choose an image file and press <strong>Upload photo</strong> — an
+          upload replaces whatever the link said. JPEG, PNG, WebP or GIF, up to 5MB.
         </TableHint>
         <TableWrap>
           <thead>
@@ -57,7 +64,7 @@ export default async function PlayersAdminPage({
               <Th>Status</Th>
               <Th>Name</Th>
               <Th>First year</Th>
-              <Th>Photo URL</Th>
+              <Th>Photo</Th>
               <Th></Th>
             </tr>
           </thead>
@@ -111,6 +118,26 @@ export default async function PlayersAdminPage({
                       className="rounded-md border border-slate-200 px-2 py-1 text-xs text-slate-500 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800"
                     >
                       Save
+                    </button>
+                  </form>
+                  <form
+                    action={uploadPlayerPhoto}
+                    className="mt-1.5 flex flex-wrap items-center gap-2"
+                  >
+                    <input type="hidden" name="leagueId" value={league.id} />
+                    <input type="hidden" name="slug" value={slug} />
+                    <input type="hidden" name="playerId" value={p.id} />
+                    <input
+                      type="file"
+                      name="photo"
+                      accept="image/jpeg,image/png,image/webp,image/gif"
+                      className="w-56 text-xs text-slate-500 file:mr-2 file:rounded-md file:border-0 file:bg-slate-100 file:px-2 file:py-1 file:text-xs file:font-medium hover:file:bg-slate-200 dark:file:bg-slate-800 dark:hover:file:bg-slate-700"
+                    />
+                    <button
+                      type="submit"
+                      className="rounded-md border border-slate-200 px-2 py-1 text-xs hover:border-fairway-500 hover:text-fairway-600 dark:border-slate-800"
+                    >
+                      Upload photo
                     </button>
                   </form>
                 </Td>

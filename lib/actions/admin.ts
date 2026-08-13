@@ -298,6 +298,86 @@ export async function updatePlayer(formData: FormData): Promise<void> {
  * scheduled / cancelled) is folded in here too, so one form covers everything
  * about the event except its scores.
  */
+/**
+ * Upload a photo for one player and point their record at it.
+ *
+ * The file goes to the `player-photos` bucket under `<league_id>/<player_id>`,
+ * which is the path the storage policies read to decide who may write -- see
+ * migration 0011. Keeping the league id in the path means storage reuses the
+ * same `app.is_league_admin()` the rest of the app uses, rather than growing a
+ * second idea of who counts as an admin.
+ *
+ * The object name carries a counter so a replacement lands on a fresh path.
+ * Overwriting in place would keep the URL stable and leave every browser and
+ * CDN showing the old face until their cache expired, which reads as "the
+ * upload silently didn't work".
+ */
+export async function uploadPlayerPhoto(formData: FormData): Promise<void> {
+  const leagueId = String(formData.get('leagueId') ?? '');
+  const slug = String(formData.get('slug') ?? '');
+  const playerId = String(formData.get('playerId') ?? '');
+  const file = formData.get('photo');
+
+  if (!leagueId || !slug || !playerId) {
+    throw new Error('Missing leagueId, slug, or playerId on the photo upload form.');
+  }
+  await requireAdmin(leagueId, slug);
+
+  // An empty file input still submits, as a zero-byte File. Treat that as
+  // "they pressed save without choosing anything" rather than an error.
+  if (!(file instanceof File) || file.size === 0) {
+    redirect(`/${slug}/admin/players`);
+  }
+
+  const ALLOWED: Record<string, string> = {
+    'image/jpeg': 'jpg',
+    'image/png': 'png',
+    'image/webp': 'webp',
+    'image/gif': 'gif',
+  };
+  const ext = ALLOWED[file.type];
+  if (!ext) {
+    throw new Error(
+      `Unsupported image type ${file.type || '(unknown)'}. Use JPEG, PNG, WebP or GIF.`,
+    );
+  }
+  const MAX_BYTES = 5 * 1024 * 1024;
+  if (file.size > MAX_BYTES) {
+    throw new Error(
+      `That image is ${(file.size / 1024 / 1024).toFixed(1)}MB; the limit is 5MB.`,
+    );
+  }
+
+  const supabase = await createClient();
+
+  // A cheap monotonic suffix, taken from what is already stored. Avoids a
+  // clock, and avoids collisions when two uploads land in the same second.
+  const { data: existing } = await supabase.storage
+    .from('player-photos')
+    .list(leagueId, { search: playerId });
+  const nextIndex = (existing ?? []).length + 1;
+  const path = `${leagueId}/${playerId}-${nextIndex}.${ext}`;
+
+  const { error: uploadError } = await supabase.storage
+    .from('player-photos')
+    .upload(path, file, { contentType: file.type, upsert: true });
+  if (uploadError) {
+    throw new Error(`Uploading photo for player ${playerId}: ${uploadError.message}`);
+  }
+
+  const {
+    data: { publicUrl },
+  } = supabase.storage.from('player-photos').getPublicUrl(path);
+
+  const { error } = await supabase
+    .from('players')
+    .update({ photo_url: publicUrl })
+    .eq('id', playerId);
+  if (error) throw new Error(`Setting photo for player ${playerId}: ${error.message}`);
+
+  redirect(`/${slug}/admin/players`);
+}
+
 export async function updateEvent(formData: FormData): Promise<void> {
   const leagueId = String(formData.get('leagueId') ?? '');
   const slug = String(formData.get('slug') ?? '');
