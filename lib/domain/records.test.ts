@@ -395,19 +395,25 @@ describe('best season average', () => {
 });
 
 describe('the board as a whole', () => {
-  it('produces every record, even with nobody to fill them', () => {
+  it('produces every record in reading order, even with nobody to fill them', () => {
+    // The order is deliberate and part of the design, not an accident of how
+    // the array was typed: winning first (hardest won first), then longevity,
+    // then scoring, then the handicap group. Pinned so a later edit that
+    // shuffles the array has to say so out loud.
     const boards = buildRecords([]);
     expect(boards.map((b) => b.key)).toEqual([
-      'events',
-      'majors',
       'championships',
+      'majors',
+      'event-wins',
+      'total-wins',
+      'events',
       'lowest-net',
       'lowest-gross',
+      'season-avg',
       'lowest-handicap',
       'turnaround',
       'career-improvement',
       'best-leap',
-      'season-avg',
     ]);
     expect(boards.every((b) => b.tiers.length === 0)).toBe(true);
   });
@@ -490,5 +496,61 @@ describe('current members only', () => {
       person('B', [{ rounds: [round()] }]),
     ];
     expect(buildRecords(activePeople(people))).toEqual(buildRecords(people));
+  });
+});
+
+describe('win records', () => {
+  const winner = person('Winner', [
+    {
+      rounds: [
+        round({ eventType: 'event', place: 1, year: 2020 }),
+        round({ eventType: 'event', place: 1, year: 2021 }),
+        round({ eventType: 'event', place: 3, year: 2021 }),
+        round({ eventType: 'major', place: 1, year: 2022 }),
+        round({ eventType: 'championship', place: 1, year: 2023 }),
+      ],
+    },
+  ]);
+
+  it('counts ordinary event wins without majors or championships', () => {
+    expect(boardOf([winner], 'event-wins').tiers[0].value).toBe(2);
+  });
+
+  it('counts every kind of win on the total board', () => {
+    expect(boardOf([winner], 'total-wins').tiers[0].value).toBe(4);
+  });
+
+  it('breaks the total down so nobody adds it to the boards above it', () => {
+    expect(boardOf([winner], 'total-wins').tiers[0].entries[0].detail).toBe(
+      '2 events, 1 major, 1 Championship',
+    );
+  });
+
+  it('names only the kinds a player actually has', () => {
+    const p = person('Majors Only', [
+      { rounds: [round({ eventType: 'major', place: 1 })] },
+    ]);
+    expect(boardOf([p], 'total-wins').tiers[0].entries[0].detail).toBe('1 major');
+  });
+
+  it('leaves someone who has never won off both win boards', () => {
+    const p = person('Runner Up', [{ rounds: [round({ place: 2 })] }]);
+    expect(boardOf([p], 'event-wins').tiers).toHaveLength(0);
+    expect(boardOf([p], 'total-wins').tiers).toHaveLength(0);
+  });
+
+  it('does not count a win in a round nobody played', () => {
+    const p = person('Absent', [
+      { rounds: [round({ place: 1, trueScore: null, netScore: null })] },
+    ]);
+    expect(boardOf([p], 'total-wins').tiers).toHaveLength(0);
+  });
+
+  it('adds wins across both chapters', () => {
+    const p = person('Both', [
+      { label: 'Iowa', rounds: [round({ eventType: 'event', place: 1 })] },
+      { label: 'Seattle', rounds: [round({ eventType: 'major', place: 1 })] },
+    ]);
+    expect(boardOf([p], 'total-wins').tiers[0].value).toBe(2);
   });
 });

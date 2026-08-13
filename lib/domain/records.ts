@@ -201,6 +201,32 @@ function countWins(p: RecordPerson, type: CareerRound['eventType']): Candidate {
 }
 
 /**
+ * Every win of any kind, with the breakdown as the detail line.
+ *
+ * The breakdown is not decoration. "14 wins" sitting next to a board reading
+ * "2 Championships" invites the reader to add them and reach 16, which is
+ * the double-count this league has tripped over before. Stating the parts
+ * under the total makes the arithmetic visible instead of leaving it to be
+ * guessed at.
+ */
+function countAllWins(p: RecordPerson): Candidate {
+  const won = allRounds(p).filter((r) => isPlayed(r) && r.place === 1);
+  if (won.length === 0) return null;
+
+  const n = (type: CareerRound['eventType']) =>
+    won.filter((r) => r.eventType === type).length;
+  const parts: string[] = [];
+  const events = n('event');
+  const majors = n('major');
+  const chips = n('championship');
+  if (events) parts.push(`${events} event${events === 1 ? '' : 's'}`);
+  if (majors) parts.push(`${majors} major${majors === 1 ? '' : 's'}`);
+  if (chips) parts.push(`${chips} Championship${chips === 1 ? '' : 's'}`);
+
+  return { value: won.length, detail: parts.join(', ') };
+}
+
+/**
  * Narrow the field to people still on a roster somewhere.
  *
  * Two decisions worth stating, because neither is the only defensible one.
@@ -223,8 +249,58 @@ export function activePeople(people: RecordPerson[]): RecordPerson[] {
   return people.filter((p) => p.chapters.some((c) => c.status === 'active'));
 }
 
+/**
+ * The boards, in the order they are read.
+ *
+ * Winning comes first, hardest thing won first: Championships, then Majors,
+ * then ordinary event wins, then the total of all three. Longevity follows,
+ * since most events played is an achievement of a different kind. Then the
+ * single best rounds and the best season, which are about scoring. The
+ * handicap records sit last as a group -- they measure improvement rather
+ * than winning, and they all read against each other.
+ */
 export function buildRecords(people: RecordPerson[]): RecordBoard[] {
   return [
+    board(
+      'championships',
+      'Most Championships',
+      'First place in a Championship, the one that closes a season.',
+      'count',
+      people,
+      (p) => countWins(p, 'championship'),
+      false,
+    ),
+
+    board(
+      'majors',
+      'Most majors won',
+      'First place in a Major.',
+      'count',
+      people,
+      (p) => countWins(p, 'major'),
+      false,
+    ),
+
+    board(
+      'event-wins',
+      'Most event wins',
+      'First place at an ordinary event — Majors and Championships counted on their own boards above.',
+      'count',
+      people,
+      (p) => countWins(p, 'event'),
+      false,
+    ),
+
+    board(
+      'total-wins',
+      'Most wins of any kind',
+      'Every first place: events, Majors and Championships together. This total already contains the three boards above, rather than adding to them.',
+      'count',
+      people,
+      countAllWins,
+      false,
+    ),
+
     board(
       'events',
       'Most events played',
@@ -245,26 +321,6 @@ export function buildRecords(people: RecordPerson[]): RecordBoard[] {
     ),
 
     board(
-      'majors',
-      'Most majors won',
-      'First place in a Major.',
-      'count',
-      people,
-      (p) => countWins(p, 'major'),
-      false,
-    ),
-
-    board(
-      'championships',
-      'Most Championships',
-      'First place in a Championship, the one that closes a season.',
-      'count',
-      people,
-      (p) => countWins(p, 'championship'),
-      false,
-    ),
-
-    board(
       'lowest-net',
       'Lowest net round',
       'The single best round anyone has played after handicap.',
@@ -281,6 +337,38 @@ export function buildRecords(people: RecordPerson[]): RecordBoard[] {
       'toPar',
       people,
       (p) => bestRound(p, (r) => r.trueScore),
+      true,
+    ),
+
+    board(
+      'season-avg',
+      'Best season average',
+      `Lowest average net across a season, minimum ${SEASON_AVG_MIN_ROUNDS} rounds.`,
+      'avg',
+      people,
+      (p) => {
+        let best: { avg: number; year: number; label: string; n: number } | null = null;
+        for (const c of p.chapters) {
+          const years = [...new Set(c.rounds.filter(isPlayed).map((r) => r.year))];
+          for (const year of years) {
+            const nets = c.rounds
+              .filter((r) => r.year === year && isPlayed(r) && r.netScore !== null)
+              .map((r) => r.netScore as number);
+            if (nets.length < SEASON_AVG_MIN_ROUNDS) continue;
+            const avg =
+              Math.round((nets.reduce((a, b) => a + b, 0) / nets.length) * 100) / 100;
+            if (best === null || avg < best.avg) {
+              best = { avg, year, label: c.label, n: nets.length };
+            }
+          }
+        }
+        return best === null
+          ? null
+          : {
+              value: best.avg,
+              detail: `${best.year} · ${best.label} · ${best.n} rounds`,
+            };
+      },
       true,
     ),
 
@@ -334,38 +422,6 @@ export function buildRecords(people: RecordPerson[]): RecordBoard[] {
       people,
       (p) => bestDrop(p, 'consecutive'),
       false,
-    ),
-
-    board(
-      'season-avg',
-      'Best season average',
-      `Lowest average net across a season, minimum ${SEASON_AVG_MIN_ROUNDS} rounds.`,
-      'avg',
-      people,
-      (p) => {
-        let best: { avg: number; year: number; label: string; n: number } | null = null;
-        for (const c of p.chapters) {
-          const years = [...new Set(c.rounds.filter(isPlayed).map((r) => r.year))];
-          for (const year of years) {
-            const nets = c.rounds
-              .filter((r) => r.year === year && isPlayed(r) && r.netScore !== null)
-              .map((r) => r.netScore as number);
-            if (nets.length < SEASON_AVG_MIN_ROUNDS) continue;
-            const avg =
-              Math.round((nets.reduce((a, b) => a + b, 0) / nets.length) * 100) / 100;
-            if (best === null || avg < best.avg) {
-              best = { avg, year, label: c.label, n: nets.length };
-            }
-          }
-        }
-        return best === null
-          ? null
-          : {
-              value: best.avg,
-              detail: `${best.year} · ${best.label} · ${best.n} rounds`,
-            };
-      },
-      true,
     ),
   ];
 }
