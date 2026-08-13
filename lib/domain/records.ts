@@ -1,4 +1,5 @@
 import { isPlayed, type CareerRound } from './career';
+import type { PlayerStatus } from './types';
 
 /**
  * All-time league records.
@@ -27,6 +28,8 @@ export interface RecordChapter {
   /** Display label, e.g. "Iowa". */
   label: string;
   playerId: string;
+  /** Roster standing in this chapter, as the admin screen sets it. */
+  status: PlayerStatus;
   rounds: CareerRound[];
   handicaps: { year: number; fs: number }[];
 }
@@ -195,6 +198,29 @@ function countWins(p: RecordPerson, type: CareerRound['eventType']): Candidate {
   if (won.length === 0) return null;
   const years = [...new Set(won.map((r) => r.year))].sort((a, b) => a - b);
   return { value: won.length, detail: years.join(', ') };
+}
+
+/**
+ * Narrow the field to people still on a roster somewhere.
+ *
+ * Two decisions worth stating, because neither is the only defensible one.
+ *
+ * Active *anywhere* counts. Somebody who turns out for Seattle but is marked
+ * inactive on the Iowa roster is plainly still an AAGLA golfer, and dropping
+ * them because one of their two rows says otherwise would be a filing quirk
+ * deciding a record.
+ *
+ * Their whole career still counts, including the chapter they have left. The
+ * toggle answers "who is still around", not "what have they done lately" --
+ * a player's Iowa years are things they did, and blanking them would produce
+ * a board where an active member's own record is missing from it.
+ *
+ * Applied before `buildRecords` rather than inside it, so every board is
+ * genuinely recomputed on the smaller field: ties re-form, the runners-up
+ * change, and a record can pass to somebody who never held it outright.
+ */
+export function activePeople(people: RecordPerson[]): RecordPerson[] {
+  return people.filter((p) => p.chapters.some((c) => c.status === 'active'));
 }
 
 export function buildRecords(people: RecordPerson[]): RecordBoard[] {

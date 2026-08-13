@@ -16,3 +16,18 @@ export async function resolveShowInactive(param: string | undefined): Promise<bo
   const store = await cookies();
   return store.get('showInactive')?.value === '1';
 }
+
+/**
+ * Resolve the record book's "current members only" filter.
+ *
+ * Same URL-then-cookie precedence as above, but a separate cookie and the
+ * opposite default: records show everyone unless asked otherwise, because
+ * most all-time records are held by people who have since stopped playing.
+ * See `ActiveOnlyToggle` for why the two preferences stay apart.
+ */
+export async function resolveActiveOnly(param: string | undefined): Promise<boolean> {
+  if (param === '1') return true;
+  if (param === '0') return false;
+  const store = await cookies();
+  return store.get('recordsActiveOnly')?.value === '1';
+}

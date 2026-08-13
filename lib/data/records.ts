@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import type { CareerRound } from '@/lib/domain/career';
 import type { RecordPerson } from '@/lib/domain/records';
-import type { EventType } from '@/lib/domain/types';
+import type { EventType, PlayerStatus } from '@/lib/domain/types';
 
 /**
  * Every person in the league, across every chapter, for the records board.
@@ -41,7 +41,10 @@ export async function getRecordPeople(): Promise<RecordPerson[]> {
     { data: hcRows },
   ] = await Promise.all([
     supabase.from('leagues').select('id, slug, name, chapter'),
-    supabase.from('players').select('id, league_id, name, photo_url').limit(MAX_ROWS),
+    supabase
+      .from('players')
+      .select('id, league_id, name, photo_url, status')
+      .limit(MAX_ROWS),
     supabase
       .from('scores')
       .select(
@@ -107,6 +110,7 @@ export async function getRecordPeople(): Promise<RecordPerson[]> {
     league_id: string;
     name: string;
     photo_url: string | null;
+    status: PlayerStatus;
   }[]) {
     const league = leagues.get(p.league_id);
     // RLS hid the league, so there is nothing to label this chapter with.
@@ -119,6 +123,7 @@ export async function getRecordPeople(): Promise<RecordPerson[]> {
       leagueSlug: league.slug,
       label: league.chapter ?? league.name,
       playerId: p.id,
+      status: p.status,
       rounds: (roundsByPlayer.get(p.id) ?? []).sort(
         (a, b) => a.year - b.year || a.sequence - b.sequence,
       ),

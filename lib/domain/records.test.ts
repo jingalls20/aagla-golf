@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { buildRecords, SEASON_AVG_MIN_ROUNDS, type RecordPerson } from './records';
+import {
+  activePeople,
+  buildRecords,
+  SEASON_AVG_MIN_ROUNDS,
+  type RecordPerson,
+} from './records';
 import type { CareerRound } from './career';
+import type { PlayerStatus } from './types';
 
 function round(over: Partial<CareerRound> = {}): CareerRound {
   return {
@@ -21,6 +27,7 @@ function person(
   name: string,
   chapters: {
     label?: string;
+    status?: PlayerStatus;
     rounds?: CareerRound[];
     handicaps?: { year: number; fs: number }[];
   }[],
@@ -34,6 +41,9 @@ function person(
       leagueSlug: `l${i}`,
       label: c.label ?? 'Iowa',
       playerId: `${name}-${i}`,
+      // Active unless a test says otherwise: the roster filter is opt-in, so
+      // every existing case should behave as it did before it existed.
+      status: c.status ?? 'active',
       rounds: c.rounds ?? [],
       handicaps: c.handicaps ?? [],
     })),
@@ -409,5 +419,76 @@ describe('the board as a whole', () => {
     ]);
     const e = boardOf([p], 'events').tiers[0].entries[0];
     expect(e.chapters.map((c) => c.playerId)).toEqual(['Linked-0', 'Linked-1']);
+  });
+});
+
+describe('current members only', () => {
+  it('drops people who are inactive everywhere', () => {
+    const gone = person('Retired', [
+      { status: 'inactive', rounds: [round(), round()] },
+    ]);
+    const here = person('Playing', [{ rounds: [round()] }]);
+
+    expect(activePeople([gone, here]).map((p) => p.name)).toEqual(['Playing']);
+  });
+
+  it('keeps someone active in one chapter and inactive in the other', () => {
+    const p = person('Moved', [
+      { label: 'Iowa', status: 'inactive', rounds: [round()] },
+      { label: 'Seattle', status: 'active', rounds: [round()] },
+    ]);
+
+    expect(activePeople([p])).toHaveLength(1);
+  });
+
+  it('still counts the career they had in the chapter they left', () => {
+    const p = person('Moved', [
+      { label: 'Iowa', status: 'inactive', rounds: [round(), round(), round()] },
+      { label: 'Seattle', status: 'active', rounds: [round()] },
+    ]);
+
+    // Four rounds, not the one they have posted since moving: the filter
+    // decides who appears, never which of their rounds count.
+    expect(boardOf(activePeople([p]), 'events').tiers[0].value).toBe(4);
+  });
+
+  it('hands the record to the next player when the holder has left', () => {
+    const gone = person('Retired', [
+      { status: 'inactive', rounds: [round(), round(), round()] },
+    ]);
+    const here = person('Playing', [{ rounds: [round(), round()] }]);
+
+    expect(boardOf([gone, here], 'events').tiers[0].entries[0].name).toBe('Retired');
+
+    const filtered = boardOf(activePeople([gone, here]), 'events');
+    expect(filtered.tiers[0].entries[0].name).toBe('Playing');
+    expect(filtered.tiers[0].value).toBe(2);
+  });
+
+  it('re-forms ties on the smaller field rather than hiding a row', () => {
+    // Three people level at the top. Remove one and the record is still
+    // shared -- by two, and the board has to say two.
+    const people = [
+      person('Gone', [{ status: 'inactive', rounds: [round(), round()] }]),
+      person('Here A', [{ rounds: [round(), round()] }]),
+      person('Here B', [{ rounds: [round(), round()] }]),
+    ];
+
+    expect(boardOf(people, 'events').tiers[0].entries).toHaveLength(3);
+    expect(boardOf(activePeople(people), 'events').tiers[0].entries).toHaveLength(2);
+  });
+
+  it('leaves the board empty rather than erroring when nobody is active', () => {
+    const people = [person('Retired', [{ status: 'inactive', rounds: [round()] }])];
+    const boards = buildRecords(activePeople(people));
+    expect(boards.every((b) => b.tiers.length === 0)).toBe(true);
+  });
+
+  it('does not change the board when everybody is active', () => {
+    const people = [
+      person('A', [{ rounds: [round(), round()] }]),
+      person('B', [{ rounds: [round()] }]),
+    ];
+    expect(buildRecords(activePeople(people))).toEqual(buildRecords(people));
   });
 });

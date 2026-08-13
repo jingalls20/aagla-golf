@@ -3,13 +3,16 @@ import { notFound } from 'next/navigation';
 import { getLeague } from '@/lib/data/queries';
 import { getRecordPeople } from '@/lib/data/records';
 import {
+  activePeople,
   buildRecords,
   type RecordBoard,
   type RecordEntry,
   type RecordFormat,
 } from '@/lib/domain/records';
 import { Avatar } from '@/components/avatar';
+import { ActiveOnlyToggle } from '@/components/selectors';
 import { Empty, toPar } from '@/components/ui';
+import { resolveActiveOnly } from '@/lib/prefs';
 
 /**
  * The record book.
@@ -172,23 +175,35 @@ function Board({ board, slug }: { board: RecordBoard; slug: string }) {
 
 export default async function RecordsPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ league: string }>;
+  searchParams: Promise<{ activeOnly?: string }>;
 }) {
   const { league: slug } = await params;
   const league = await getLeague(slug);
   if (!league) notFound();
 
-  const people = await getRecordPeople();
+  const activeOnly = await resolveActiveOnly((await searchParams).activeOnly);
+
+  const everyone = await getRecordPeople();
+  // Filter first, then build: the boards are genuinely recomputed over the
+  // smaller field rather than having rows hidden after the fact, so a record
+  // can pass to whoever is next in line.
+  const people = activeOnly ? activePeople(everyone) : everyone;
   const boards = buildRecords(people);
   const chapters = [
     ...new Set(people.flatMap((p) => p.chapters.map((c) => c.label))),
   ].sort();
+  const setAside = everyone.length - people.length;
 
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="text-xl font-semibold">The record book</h1>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <h1 className="text-xl font-semibold">The record book</h1>
+          <ActiveOnlyToggle on={activeOnly} />
+        </div>
         <p className="mt-1 max-w-prose text-sm text-slate-500">
           Every record is all-time and counted across{' '}
           {chapters.length > 1
@@ -198,6 +213,20 @@ export default async function RecordsPage({
           together, and their bests are labelled with wherever they happened. Where two
           people share a figure, they share the record.
         </p>
+        {activeOnly ? (
+          <p className="mt-2 max-w-prose text-sm text-slate-500">
+            Showing current members only
+            {setAside > 0 ? (
+              <>
+                {' '}
+                &mdash; {setAside} former {setAside === 1 ? 'member is' : 'members are'}{' '}
+                set aside and every record below is recalculated without them
+              </>
+            ) : null}
+            . Anyone still on a roster in either chapter counts, and their full career
+            counts with them.
+          </p>
+        ) : null}
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">

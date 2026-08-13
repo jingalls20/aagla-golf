@@ -87,3 +87,46 @@ export function InactiveToggle({ show }: { show: boolean }) {
     </label>
   );
 }
+
+/**
+ * Records-only filter: recompute every board over current members alone.
+ *
+ * Deliberately a separate control from `InactiveToggle` above, with its own
+ * cookie and its own default, because the two screens want opposite things.
+ * On the standings a retired player is clutter, so those hide inactives
+ * unless asked. A record book is mostly *made* of people who have stopped
+ * playing -- the longest careers and the lowest rounds belong to them -- so
+ * hiding them by default would quietly delete the history the page exists to
+ * show. Here the full board is the default and this is the opt-in.
+ *
+ * Sharing one cookie between the two would mean ticking "show inactive" on
+ * the standings silently rewrote the record book, which is not a connection
+ * anybody would predict from the labels.
+ */
+export function ActiveOnlyToggle({ on }: { on: boolean }) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  function toggle() {
+    const next = !on;
+    document.cookie = next
+      ? 'recordsActiveOnly=1; path=/; max-age=31536000'
+      : 'recordsActiveOnly=0; path=/; max-age=31536000';
+    const params = new URLSearchParams(searchParams.toString());
+    params.set('activeOnly', next ? '1' : '0');
+    router.push(`${pathname}?${params.toString()}`);
+  }
+
+  return (
+    <label className="flex cursor-pointer select-none items-center gap-2 text-xs text-slate-500">
+      <input
+        type="checkbox"
+        checked={on}
+        onChange={toggle}
+        className="h-3.5 w-3.5 rounded border-slate-300 text-fairway-600 focus:ring-fairway-500"
+      />
+      Current members only
+    </label>
+  );
+}
