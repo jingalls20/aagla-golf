@@ -18,3 +18,8 @@ yarn-error.log*
 .vercel
 supabase/.temp/
 supabase/.branches/
+
+# Delivery scratch: the bundle Claude writes into the folder and the
+# PowerShell helper that consumes it. Local tooling, not part of the app.
+*.bundle
+ship.ps1
