@@ -69,8 +69,12 @@ export interface CareerTotals {
 
 /** A round only counts as played once a real score exists for it. A 'missed'
  *  or 'dnp' row carries a place and points but no stroke count, and averaging
- *  those in would quietly punish a player for a week they were on holiday. */
-export function isPlayed(r: CareerRound): boolean {
+ *  those in would quietly punish a player for a week they were on holiday.
+ *
+ *  Takes the one field it reads rather than a whole CareerRound, so the
+ *  recap generator can ask the same question of its own row shape instead of
+ *  keeping a second copy of this rule that could drift from this one. */
+export function isPlayed(r: Pick<CareerRound, 'trueScore'>): boolean {
   return r.trueScore !== null;
 }
 
