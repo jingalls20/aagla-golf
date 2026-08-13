@@ -14,6 +14,7 @@ const TABS = [
   { href: '/events', label: 'Results' },
   { href: '/players', label: 'Players' },
   { href: '/history', label: 'History' },
+  { href: '/records', label: 'Records' },
 ];
 
 export default async function LeagueLayout({
