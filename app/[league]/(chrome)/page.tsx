@@ -241,12 +241,15 @@ export default async function StandingsPage({
         {visibleStandings.length === 0 ? (
           <Empty>No results recorded for {year} yet.</Empty>
         ) : (
-          <SortableTable
-            columns={standingsColumns}
-            rows={standingsRows}
-            sticky
-            pinFirstColumn={false}
-          />
+          // Not sticky, deliberately. Pinning the header means capping the
+          // wrapper's height and scrolling inside it, and on a phone that
+          // inner scroller swallows the touch gesture -- you drag expecting
+          // the page to move and the table moves instead. This table is five
+          // columns wide and fits, so the header was never at risk of
+          // scrolling away; it cost a phone-hostile scroll container and
+          // bought nothing. The events grid below keeps its sticky header,
+          // where a wide table genuinely does scroll out from under you.
+          <SortableTable columns={standingsColumns} rows={standingsRows} />
         )}
       </Card>
 
