@@ -1,8 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { updateSession } from '@/lib/supabase/middleware';
-
-/** Never treated as a league slug, so visiting them doesn't overwrite the cookie. */
-const RESERVED_FIRST_SEGMENTS = new Set(['login', 'auth', 'api']);
+import { isLeagueSlug } from '@/lib/routing';
 
 const LAST_LEAGUE_COOKIE = 'last_league';
 
@@ -27,7 +25,10 @@ export async function middleware(request: NextRequest) {
 
   if (pathname === '/' && !searchParams.has('chapters')) {
     const lastLeague = request.cookies.get(LAST_LEAGUE_COOKIE)?.value;
-    if (lastLeague) {
+    // Checked on the way out as well as on the way in, so a cookie already
+    // poisoned in somebody's browser falls back to the chapter picker
+    // instead of following itself somewhere useless.
+    if (lastLeague && isLeagueSlug(lastLeague)) {
       const redirectUrl = request.nextUrl.clone();
       redirectUrl.pathname = `/${lastLeague}`;
       redirectUrl.search = '';
@@ -36,7 +37,7 @@ export async function middleware(request: NextRequest) {
   }
 
   const firstSegment = pathname.match(/^\/([^/]+)/)?.[1];
-  if (firstSegment && !RESERVED_FIRST_SEGMENTS.has(firstSegment)) {
+  if (firstSegment && isLeagueSlug(firstSegment)) {
     response.cookies.set(LAST_LEAGUE_COOKIE, firstSegment, {
       path: '/',
       maxAge: 60 * 60 * 24 * 365,
@@ -50,10 +51,16 @@ export async function middleware(request: NextRequest) {
 export const config = {
   matcher: [
     /*
-     * Everything except static assets and images. The public board is
-     * included on purpose: an anonymous visitor still needs a (signed-out)
-     * session for row-level security to evaluate consistently.
+     * Everything except static assets, images and root-level metadata files.
+     * The public board is included on purpose: an anonymous visitor still
+     * needs a (signed-out) session for row-level security to evaluate
+     * consistently.
+     *
+     * `manifest.webmanifest` is excluded so the manifest fetch doesn't run
+     * session refresh on every page load for a file that needs none. The
+     * `isLeagueSlug` guard above is the actual correctness fix; this is the
+     * saved work.
      */
-    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
+    '/((?!_next/static|_next/image|favicon.ico|manifest.webmanifest|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 };
