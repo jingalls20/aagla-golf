@@ -75,6 +75,31 @@ export const SEASON_AVG_MIN_ROUNDS = 5;
 /** How many distinct values to show: the record, then two more behind it. */
 const TIERS = 3;
 
+/**
+ * The handicaps that were actually earned, rather than defaulted.
+ *
+ * `computeHandicap` returns 0 with a note when a player has no qualifying
+ * rounds in the source season -- a placeholder meaning "no strokes given
+ * because we know nothing yet", not a figure anyone played to. A rookie's
+ * first season carries one, and so does anyone who sat a year out and came
+ * back. Anchoring an improvement record to one of those invents a drop: it
+ * reads a player going from a placeholder 0 to a real 14 as getting worse,
+ * and a real 16 down to a placeholder 0 as the best turnaround in league
+ * history.
+ *
+ * So a handicap only counts here if the player actually posted qualifying
+ * rounds in the season it was computed from -- the same rounds the handicap
+ * rule itself looks at, in the same chapter. That is the rule "you have to
+ * play a season before you can improve on it", stated in terms of the data.
+ */
+function earnedHandicaps(c: RecordChapter): { year: number; fs: number }[] {
+  return c.handicaps.filter((h) =>
+    c.rounds.some(
+      (r) => r.year === h.year - 1 && r.eventType !== 'championship' && isPlayed(r),
+    ),
+  );
+}
+
 function allRounds(p: RecordPerson): CareerRound[] {
   return p.chapters.flatMap((c) => c.rounds);
 }
@@ -236,13 +261,13 @@ export function buildRecords(people: RecordPerson[]): RecordBoard[] {
     board(
       'lowest-handicap',
       'Lowest handicap',
-      'The lowest figure anyone has ever played a season off.',
+      'The lowest figure anyone has ever played a season off, counting only handicaps earned from a season actually played.',
       'strokes',
       people,
       (p) => {
         let best: { fs: number; year: number; label: string } | null = null;
         for (const c of p.chapters) {
-          for (const h of c.handicaps) {
+          for (const h of earnedHandicaps(c)) {
             if (best === null || h.fs < best.fs) {
               best = { fs: h.fs, year: h.year, label: c.label };
             }
@@ -258,7 +283,7 @@ export function buildRecords(people: RecordPerson[]): RecordBoard[] {
     board(
       'turnaround',
       'Biggest turnaround',
-      'The largest fall from any handicap to a lower one in a later season — the best improvement ever actually reached, even if it drifted back after.',
+      'The largest fall from any handicap to a lower one in a later season — the best improvement ever actually reached, even if it drifted back after. Counts only from a player’s first earned handicap onward.',
       'strokes',
       people,
       (p) => bestDrop(p, 'peak-to-later-low'),
@@ -268,7 +293,7 @@ export function buildRecords(people: RecordPerson[]): RecordBoard[] {
     board(
       'career-improvement',
       'Most improved career',
-      'First season handicap against the most recent one. Where they started, against where they are now.',
+      'First earned handicap against the most recent one. Where they started, against where they are now.',
       'strokes',
       people,
       (p) => bestDrop(p, 'first-to-last'),
@@ -278,7 +303,7 @@ export function buildRecords(people: RecordPerson[]): RecordBoard[] {
     board(
       'best-leap',
       'Biggest single-season leap',
-      'The largest fall between one season’s handicap and the next.',
+      'The largest fall between one earned handicap and the next.',
       'strokes',
       people,
       (p) => bestDrop(p, 'consecutive'),
@@ -342,7 +367,7 @@ function bestDrop(p: RecordPerson, kind: DropKind): Candidate {
   };
 
   for (const c of p.chapters) {
-    const hs = [...c.handicaps].sort((a, b) => a.year - b.year);
+    const hs = earnedHandicaps(c).sort((a, b) => a.year - b.year);
     if (hs.length < 2) continue;
 
     if (kind === 'first-to-last') {

@@ -163,8 +163,16 @@ describe('best-round records', () => {
 describe('lowest handicap', () => {
   it('takes the lowest across chapters and can go below scratch', () => {
     const p = person('Scratch', [
-      { label: 'Iowa', handicaps: [{ year: 2020, fs: 4 }] },
-      { label: 'Seattle', handicaps: [{ year: 2024, fs: -1 }] },
+      {
+        label: 'Iowa',
+        rounds: [round({ year: 2019 })],
+        handicaps: [{ year: 2020, fs: 4 }],
+      },
+      {
+        label: 'Seattle',
+        rounds: [round({ year: 2023 })],
+        handicaps: [{ year: 2024, fs: -1 }],
+      },
     ]);
     const b = boardOf([p], 'lowest-handicap');
     expect(b.tiers[0].value).toBe(-1);
@@ -173,9 +181,14 @@ describe('lowest handicap', () => {
 });
 
 describe('handicap drops', () => {
+  /** A handicap only counts once it was earned, so every season quoted below
+   *  needs a played round in the year before it. */
+  const earnedIn = (years: number[]) => years.map((y) => round({ year: y - 1 }));
+
   const journey = person('Journey', [
     {
       label: 'Iowa',
+      rounds: earnedIn([2013, 2014, 2019, 2026]),
       handicaps: [
         { year: 2013, fs: 25 },
         { year: 2014, fs: 22 },
@@ -207,6 +220,7 @@ describe('handicap drops', () => {
     const p = person('Crossed', [
       {
         label: 'Iowa',
+        rounds: [round({ year: 2023 }), round({ year: 2024 })],
         handicaps: [
           { year: 2024, fs: 25 },
           { year: 2025, fs: 23 },
@@ -214,6 +228,7 @@ describe('handicap drops', () => {
       },
       {
         label: 'Seattle',
+        rounds: [round({ year: 2023 }), round({ year: 2024 })],
         handicaps: [
           { year: 2024, fs: 2 },
           { year: 2025, fs: 1 },
@@ -226,6 +241,7 @@ describe('handicap drops', () => {
   it('ignores a handicap that only ever rose', () => {
     const worse = person('Worse', [
       {
+        rounds: [round({ year: 2019 }), round({ year: 2020 })],
         handicaps: [
           { year: 2020, fs: 5 },
           { year: 2021, fs: 12 },
@@ -238,8 +254,85 @@ describe('handicap drops', () => {
   });
 
   it('needs two seasons before any drop exists', () => {
-    const one = person('Rookie', [{ handicaps: [{ year: 2025, fs: 14 }] }]);
+    const one = person('Rookie', [
+      { rounds: [round({ year: 2024 })], handicaps: [{ year: 2025, fs: 14 }] },
+    ]);
     expect(boardOf([one], 'turnaround').tiers).toHaveLength(0);
+  });
+});
+
+describe('handicaps that were never earned', () => {
+  it('ignores a first season, since there was nothing to improve on yet', () => {
+    // 2022 is the rookie year: no 2021 rounds, so its handicap is the rule's
+    // placeholder rather than a figure anyone played to.
+    const p = person('Rookie', [
+      {
+        rounds: [round({ year: 2022 }), round({ year: 2023 })],
+        handicaps: [
+          { year: 2022, fs: 16 },
+          { year: 2023, fs: 14 },
+          { year: 2024, fs: 9 },
+        ],
+      },
+    ]);
+    // Only 2023 and 2024 were earned, so the drop is 5 rather than 7.
+    expect(boardOf([p], 'turnaround').tiers[0].value).toBe(5);
+  });
+
+  it('ignores a placeholder mid-career, after a season sat out', () => {
+    // Played 2021, so 2022 is earned. Sat out 2022-2024, so 2025 defaults to
+    // 0 -- reading 16 down to that 0 would be a 16-stroke turnaround that
+    // never happened.
+    const p = person('Comeback', [
+      {
+        rounds: [round({ year: 2021 }), round({ year: 2022 })],
+        handicaps: [
+          { year: 2022, fs: 16 },
+          { year: 2025, fs: 0 },
+          { year: 2026, fs: 14 },
+        ],
+      },
+    ]);
+    expect(boardOf([p], 'turnaround').tiers).toHaveLength(0);
+    expect(boardOf([p], 'best-leap').tiers).toHaveLength(0);
+  });
+
+  it('keeps a genuine zero that was earned from real rounds', () => {
+    const scratch = person('Scratch', [
+      {
+        rounds: [round({ year: 2023 }), round({ year: 2024 })],
+        handicaps: [
+          { year: 2024, fs: 6 },
+          { year: 2025, fs: 0 },
+        ],
+      },
+    ]);
+    expect(boardOf([scratch], 'lowest-handicap').tiers[0].value).toBe(0);
+    expect(boardOf([scratch], 'turnaround').tiers[0].value).toBe(6);
+  });
+
+  it('never lets a placeholder win the lowest-handicap record', () => {
+    const placeholder = person('Never Played Before', [
+      { rounds: [round({ year: 2025 })], handicaps: [{ year: 2025, fs: 0 }] },
+    ]);
+    const real = person('Real', [
+      { rounds: [round({ year: 2024 })], handicaps: [{ year: 2025, fs: 3 }] },
+    ]);
+    const b = boardOf([placeholder, real], 'lowest-handicap');
+    expect(b.tiers[0].entries[0].name).toBe('Real');
+    expect(b.tiers[0].value).toBe(3);
+  });
+
+  it('does not count a Championship round as having played the season', () => {
+    // Championships never feed a handicap, so playing only one leaves the
+    // next season's figure a placeholder.
+    const p = person('Champ Only', [
+      {
+        rounds: [round({ year: 2024, eventType: 'championship' })],
+        handicaps: [{ year: 2025, fs: 12 }],
+      },
+    ]);
+    expect(boardOf([p], 'lowest-handicap').tiers).toHaveLength(0);
   });
 });
 
