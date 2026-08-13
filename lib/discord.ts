@@ -21,21 +21,37 @@ export type DiscordResult =
   | { ok: false; reason: 'unconfigured' | 'rejected' | 'unreachable'; detail: string };
 
 /**
- * The env var holding a chapter's webhook.
+ * The env var holding a chapter's own webhook, when it has one.
  *
- * Keyed by slug so adding a third chapter is a Vercel setting rather than a
- * deploy: `DISCORD_WEBHOOK_IOWA`, `DISCORD_WEBHOOK_SEATTLE`. The generic
- * `DISCORD_WEBHOOK_URL` is the fallback for a single-Discord setup, so this
- * works before anyone has decided to split the channels.
+ * Keyed by slug so giving a chapter its own channel later is a Vercel
+ * setting rather than a deploy: `DISCORD_WEBHOOK_IOWA`,
+ * `DISCORD_WEBHOOK_SEATTLE`.
  */
 export function webhookEnvName(slug: string): string {
   return `DISCORD_WEBHOOK_${slug.toUpperCase().replace(/[^A-Z0-9]+/g, '_')}`;
 }
 
+/**
+ * The league-wide fallbacks, tried in order after the chapter-specific one.
+ *
+ * Both names are accepted rather than one, because there is no good reason
+ * to make somebody re-enter a credential to satisfy a naming preference.
+ * A per-chapter variable still wins if it exists, so starting with one
+ * shared channel and splitting later needs no change here.
+ */
+const LEAGUE_WIDE_ENV_NAMES = ['DISCORD_WEBHOOK_URL_AAGLA', 'DISCORD_WEBHOOK_URL'];
+
+/** Every variable consulted for a chapter, best match first. */
+export function webhookEnvCandidates(slug: string): string[] {
+  return [webhookEnvName(slug), ...LEAGUE_WIDE_ENV_NAMES];
+}
+
 function webhookFor(slug: string): string | null {
-  const specific = process.env[webhookEnvName(slug)]?.trim();
-  if (specific) return specific;
-  return process.env.DISCORD_WEBHOOK_URL?.trim() || null;
+  for (const name of webhookEnvCandidates(slug)) {
+    const value = process.env[name]?.trim();
+    if (value) return value;
+  }
+  return null;
 }
 
 /** Whether posting is available, without revealing anything about the URL. */
@@ -59,7 +75,7 @@ export async function postToDiscord(
     return {
       ok: false,
       reason: 'unconfigured',
-      detail: `No Discord webhook is set for this chapter. Add ${webhookEnvName(slug)} in the Vercel project settings and redeploy.`,
+      detail: `No Discord webhook is set. Add one of ${webhookEnvCandidates(slug).join(', ')} to the aagla-golf project in Vercel and redeploy.`,
     };
   }
 

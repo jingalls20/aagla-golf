@@ -13,7 +13,7 @@ import {
 import { postEventRecap, postSeasonRecap } from '@/lib/actions/recaps';
 import { eventRecapInput, seasonRecapInput } from '@/lib/data/recaps';
 import { eventLabel, eventRecap, seasonRecap } from '@/lib/domain/recap';
-import { discordConfigured, webhookEnvName } from '@/lib/discord';
+import { discordConfigured, webhookEnvCandidates } from '@/lib/discord';
 import { Badge, Card, Empty, TableWrap, Th, Td } from '@/components/ui';
 import { AddEventsForm } from '@/components/add-events-form';
 import { TableHint } from '@/components/table-hint';
@@ -266,11 +266,21 @@ export default async function SeasonEventsPage({
           <p className="mb-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs leading-relaxed text-slate-500 dark:border-slate-800 dark:bg-slate-900">
             Posting is switched off until a webhook exists. In Discord, open the
             channel&rsquo;s <strong>Edit Channel → Integrations → Webhooks</strong> and
-            create one, then add its URL to the Vercel project as{' '}
+            create one, then add its URL to the <strong>aagla-golf</strong> project in
+            Vercel — not another project — under any of{' '}
+            {webhookEnvCandidates(slug).map((name, i) => (
+              <span key={name}>
+                {i > 0 ? ' or ' : ''}
+                <code className="rounded bg-slate-200 px-1 dark:bg-slate-800">
+                  {name}
+                </code>
+              </span>
+            ))}
+            , then redeploy. The value is the full URL beginning{' '}
             <code className="rounded bg-slate-200 px-1 dark:bg-slate-800">
-              {webhookEnvName(slug)}
-            </code>{' '}
-            and redeploy. The buttons below stay visible so you can read the recaps
+              https://discord.com/api/webhooks/
+            </code>
+            , not a bot token. The buttons below stay visible so you can read the recaps
             meanwhile.
           </p>
         ) : null}
