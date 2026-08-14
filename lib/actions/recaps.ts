@@ -3,7 +3,13 @@
 import { redirect } from 'next/navigation';
 import { isLeagueAdmin } from '@/lib/data/admin';
 import { eventRecapInput, seasonRecapInput } from '@/lib/data/recaps';
-import { eventRecap, fitToDiscord, seasonRecap } from '@/lib/domain/recap';
+import {
+  announcement,
+  ANNOUNCEMENT_LIMIT,
+  eventRecap,
+  fitToDiscord,
+  seasonRecap,
+} from '@/lib/domain/recap';
 import { postToDiscord } from '@/lib/discord';
 
 /**
@@ -35,8 +41,13 @@ function back(
 ): never {
   const posted = `posted=${encodeURIComponent(outcome)}`;
   if (returnTo) {
+    // An announcement has no event to reselect, so the event param is only
+    // added when there is one; without it the screen keeps its own default.
+    const event = returnTo.eventId
+      ? `&event=${encodeURIComponent(returnTo.eventId)}`
+      : '';
     redirect(
-      `/${slug}/admin?year=${encodeURIComponent(returnTo.year)}&event=${encodeURIComponent(returnTo.eventId)}&${posted}`,
+      `/${slug}/admin?year=${encodeURIComponent(returnTo.year)}${event}&${posted}`,
     );
   }
   redirect(`/${slug}/admin/seasons/${seasonId}?${posted}`);
@@ -75,6 +86,38 @@ export async function postEventRecap(formData: FormData): Promise<void> {
   if (!text) back(slug, seasonId, 'empty', returnTo);
 
   const result = await postToDiscord(slug, fitToDiscord(text));
+  back(slug, seasonId, result.ok ? 'ok' : result.reason, returnTo);
+}
+
+/**
+ * An announcement in the admin's own words.
+ *
+ * The one place where text does travel from the form to Discord, because
+ * there is no other way for "the rules meeting moved to Tuesday" to reach
+ * the channel. So the guards are on the content rather than on its
+ * provenance: admin-only like everything else here, empty messages
+ * rejected, `@everyone` and `@here` defanged in the text, and the webhook
+ * itself posting with mentions disabled regardless.
+ */
+export async function postAnnouncement(formData: FormData): Promise<void> {
+  const leagueId = String(formData.get('leagueId') ?? '');
+  const leagueName = String(formData.get('leagueName') ?? '');
+  const slug = String(formData.get('slug') ?? '');
+  const seasonId = String(formData.get('seasonId') ?? '');
+  const year = String(formData.get('year') ?? '');
+  const body = String(formData.get('body') ?? '');
+
+  if (!leagueId || !slug) redirect(`/${slug}`);
+  if (!(await isLeagueAdmin(leagueId))) redirect(`/${slug}`);
+
+  // Announcements are composed on the score-entry screen, so that is where
+  // the outcome belongs; there is no event to name in the return.
+  const returnTo = year ? { screen: 'admin' as const, year, eventId: '' } : null;
+
+  const text = announcement(leagueName, body.slice(0, ANNOUNCEMENT_LIMIT));
+  if (!text) back(slug, seasonId, 'empty-message', returnTo);
+
+  const result = await postToDiscord(slug, text);
   back(slug, seasonId, result.ok ? 'ok' : result.reason, returnTo);
 }
 

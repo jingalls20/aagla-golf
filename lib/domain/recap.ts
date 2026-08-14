@@ -58,6 +58,10 @@ export interface SeasonRecapInput {
   championName: string | null;
   /** Every round of the season, for the superlatives. */
   rounds: (RecapRound & { eventLabel: string })[];
+  /** Who has won what so far, best-known-first. Empty before anyone wins. */
+  winners?: { playerName: string; eventLabel: string; eventType: EventType }[];
+  /** The next event still to be played, when one is scheduled. */
+  nextEventLabel?: string | null;
 }
 
 /** Scores read the golfer's way: under par is the good end. */
@@ -240,6 +244,40 @@ export function seasonRecap(input: SeasonRecapInput): string | null {
     lines.push(`Championship: **${input.championName}**.`);
   }
 
+  // Who has actually won something. The points table answers "who is
+  // consistent" and this answers "who has had days" -- they are different
+  // questions and in this league they routinely have different answers,
+  // since first place scores zero points and a steady third can lead a
+  // season without ever winning a round.
+  const winners = input.winners ?? [];
+  if (winners.length > 0) {
+    const byPlayer = new Map<string, string[]>();
+    for (const w of winners) {
+      const label =
+        w.eventType === 'championship'
+          ? `${w.eventLabel} (Championship)`
+          : w.eventType === 'major'
+            ? `${w.eventLabel} (Major)`
+            : w.eventLabel;
+      byPlayer.set(w.playerName, [...(byPlayer.get(w.playerName) ?? []), label]);
+    }
+    lines.push('');
+    lines.push(`**Winners so far**`);
+    for (const [player, events] of byPlayer) {
+      lines.push(`• ${player} — ${events.join(', ')}`);
+    }
+  }
+
+  const remaining = input.eventsScheduled - input.eventsPlayed;
+  if (!done && remaining > 0) {
+    lines.push('');
+    lines.push(
+      input.nextEventLabel
+        ? `${plural(remaining, 'event')} left, starting with ${input.nextEventLabel}.`
+        : `${plural(remaining, 'event')} left to play.`,
+    );
+  }
+
   const played = input.rounds.filter((r) => isPlayed({ trueScore: r.trueScore }));
   const bestNet = lowestBy(played, (r) => r.netScore) as
     (RecapRound & { eventLabel: string }) | null;
@@ -278,6 +316,33 @@ const STANDINGS_LINES = 5;
  * than a truncated sentence or a failed post.
  */
 export const DISCORD_LIMIT = 2000;
+
+/** The longest announcement an admin can type. Comfortably inside Discord's
+ *  own limit, with room left for the heading this wraps it in. */
+export const ANNOUNCEMENT_LIMIT = 1500;
+
+/**
+ * An admin's own words, headed so the channel knows where they came from.
+ *
+ * Unlike every other function here, the body is not derived from the
+ * league's data -- somebody typed it. So this does the two things that
+ * matter for text of unknown provenance: it refuses an empty message, and
+ * it neutralises the `@` of anything that looks like a mass mention. The
+ * webhook already posts with mentions disabled, so this is the second of
+ * two independent guards rather than the only one; a channel full of
+ * people should not be pingable by a textarea.
+ *
+ * Individual `@name` mentions are left alone -- they read as ordinary text
+ * to Discord under `allowed_mentions: []` anyway, and mangling them would
+ * make "ask @Rod about the tee times" look broken.
+ */
+export function announcement(leagueName: string, body: string): string | null {
+  const text = body.trim();
+  if (text.length === 0) return null;
+
+  const defanged = text.replace(/@(everyone|here)\b/gi, '@​$1');
+  return fitToDiscord(`**${leagueName}**\n\n${defanged}`);
+}
 
 export function fitToDiscord(text: string, limit = DISCORD_LIMIT): string {
   if (text.length <= limit) return text;

@@ -13,6 +13,10 @@ export const POSTED_MESSAGE: Record<string, { tone: 'good' | 'bad'; text: string
     text: 'Nothing to post yet — no scores have been recorded for that one.',
   },
   missing: { tone: 'bad', text: 'That event no longer exists.' },
+  'empty-message': {
+    tone: 'bad',
+    text: 'Type something first — an empty announcement was not sent.',
+  },
   unconfigured: {
     tone: 'bad',
     text: 'No Discord webhook is configured yet. See the note below.',

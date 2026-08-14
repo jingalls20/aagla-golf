@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  announcement,
   DISCORD_LIMIT,
   eventLabel,
   eventRecap,
@@ -235,6 +236,102 @@ describe('fitToDiscord', () => {
 
   it('still truncates something with no line breaks to cut at', () => {
     const out = fitToDiscord('x'.repeat(3000));
+    expect(out.length).toBeLessThanOrEqual(DISCORD_LIMIT);
+  });
+});
+
+describe('season status extras', () => {
+  const base = {
+    leagueName: 'AAGLA Iowa',
+    year: 2026,
+    standings: [
+      { playerName: 'Leader', totalPoints: 12, eventsPlayed: 6, seasonRank: 1 },
+    ],
+    eventsPlayed: 3,
+    eventsScheduled: 7,
+    championName: null,
+    rounds: [],
+  };
+
+  it('names who has won what, grouping a player’s wins together', () => {
+    const text = seasonRecap({
+      ...base,
+      winners: [
+        { playerName: 'Ann', eventLabel: 'Grandview', eventType: 'event' as const },
+        { playerName: 'Ann', eventLabel: 'Blank Park', eventType: 'major' as const },
+        { playerName: 'Bob', eventLabel: 'Toad Valley', eventType: 'event' as const },
+      ],
+    }) as string;
+    expect(text).toContain('**Winners so far**');
+    expect(text).toContain('• Ann — Grandview, Blank Park (Major)');
+    expect(text).toContain('• Bob — Toad Valley');
+  });
+
+  it('marks a Championship win as one', () => {
+    const text = seasonRecap({
+      ...base,
+      winners: [
+        {
+          playerName: 'Ann',
+          eventLabel: 'Otter Creek',
+          eventType: 'championship' as const,
+        },
+      ],
+    }) as string;
+    expect(text).toContain('Otter Creek (Championship)');
+  });
+
+  it('says how many events are left and what is next', () => {
+    const text = seasonRecap({ ...base, nextEventLabel: 'Terrace Hills' }) as string;
+    expect(text).toContain('4 events left, starting with Terrace Hills');
+  });
+
+  it('still counts the remainder with no next event named', () => {
+    expect(seasonRecap(base) as string).toContain('4 events left to play');
+  });
+
+  it('drops the countdown once the season is done', () => {
+    const text = seasonRecap({
+      ...base,
+      eventsPlayed: 7,
+      nextEventLabel: 'Nothing',
+    }) as string;
+    expect(text).not.toContain('left');
+  });
+
+  it('says nothing about winners before anyone has won', () => {
+    expect(seasonRecap(base) as string).not.toContain('Winners so far');
+  });
+});
+
+describe('announcement', () => {
+  it('heads the message with the league name', () => {
+    expect(announcement('AAGLA Iowa', 'Rules meeting Tuesday.')).toBe(
+      '**AAGLA Iowa**\n\nRules meeting Tuesday.',
+    );
+  });
+
+  it('refuses an empty or whitespace-only message', () => {
+    expect(announcement('AAGLA', '')).toBeNull();
+    expect(announcement('AAGLA', '   \n  ')).toBeNull();
+  });
+
+  it('stops @everyone and @here from pinging the server', () => {
+    const out = announcement('AAGLA', 'Reminder @everyone and @here') as string;
+    expect(out).not.toContain('@everyone');
+    expect(out).not.toContain('@here');
+    // The words survive for a reader; only the ping is broken.
+    expect(out).toContain('everyone');
+    expect(out).toContain('here');
+  });
+
+  it('leaves an ordinary name mention readable', () => {
+    const out = announcement('AAGLA', 'Ask @Rod about tee times') as string;
+    expect(out).toContain('@Rod');
+  });
+
+  it('truncates something far too long rather than failing to post', () => {
+    const out = announcement('AAGLA', 'x'.repeat(5000)) as string;
     expect(out.length).toBeLessThanOrEqual(DISCORD_LIMIT);
   });
 });

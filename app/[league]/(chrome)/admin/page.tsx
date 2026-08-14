@@ -10,9 +10,9 @@ import {
 } from '@/lib/data/queries';
 import { getEntryHandicaps, getSeasonRow, isLeagueAdmin } from '@/lib/data/admin';
 import { saveEventScores, clearScore } from '@/lib/actions/scores';
-import { postEventRecap } from '@/lib/actions/recaps';
+import { postAnnouncement, postEventRecap } from '@/lib/actions/recaps';
 import { eventRecapInput } from '@/lib/data/recaps';
-import { eventRecap } from '@/lib/domain/recap';
+import { ANNOUNCEMENT_LIMIT, eventRecap } from '@/lib/domain/recap';
 import { discordConfigured } from '@/lib/discord';
 import { POSTED_MESSAGE } from '@/lib/recap-messages';
 import { Card, Empty, TableWrap, Th, Td, fmt } from '@/components/ui';
@@ -369,6 +369,35 @@ export default async function AdminPage({
             Nothing to recap yet — enter a score above and it&rsquo;ll appear here.
           </Empty>
         )}
+
+        <div className="mt-5 border-t border-slate-100 pt-4 dark:border-slate-800">
+          <p className="text-sm font-medium">Or say something in your own words</p>
+          <p className="mt-0.5 text-xs text-slate-400">
+            Posted under the league&rsquo;s name, exactly as typed. Use it for anything
+            the scores don&rsquo;t cover &mdash; a rules meeting, a change of tee time,
+            who&rsquo;s bringing the beer. {ANNOUNCEMENT_LIMIT} characters.
+          </p>
+          <form action={postAnnouncement} className="mt-2 space-y-2">
+            <input type="hidden" name="leagueId" value={league.id} />
+            <input type="hidden" name="leagueName" value={league.name} />
+            <input type="hidden" name="slug" value={slug} />
+            <input type="hidden" name="seasonId" value={seasonRow?.id ?? ''} />
+            <input type="hidden" name="year" value={year} />
+            <textarea
+              name="body"
+              rows={3}
+              maxLength={ANNOUNCEMENT_LIMIT}
+              placeholder="Winter rules meeting is next Tuesday at 7. The Masters pool opens the week after."
+              className="w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-800 dark:bg-slate-900"
+            />
+            <ConfirmSubmitButton
+              confirmText="Post this announcement to Discord? Everyone in the channel will see it."
+              className="rounded-md border border-slate-200 px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-800"
+            >
+              Post announcement
+            </ConfirmSubmitButton>
+          </form>
+        </div>
 
         <p className="mt-3 text-xs text-slate-400">
           Season recaps, and recaps for any other event, live on{' '}

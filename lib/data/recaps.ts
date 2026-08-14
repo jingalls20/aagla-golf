@@ -103,6 +103,24 @@ export async function seasonRecapInput(
   const championName =
     scores.find((s) => champions.has(s.playerId))?.playerName ?? null;
 
+  // Everyone who has won a round this season, in the order the rounds were
+  // played. A tie means two winners on one event, and both are named.
+  const bySequence = new Map(live.map((e) => [e.id, e.sequence]));
+  const winners = scores
+    .filter((s) => s.place === 1 && s.trueScore !== null && bySequence.has(s.eventId))
+    .sort((a, b) => (bySequence.get(a.eventId) ?? 0) - (bySequence.get(b.eventId) ?? 0))
+    .map((s) => ({
+      playerName: s.playerName,
+      eventLabel: labelOf.get(s.eventId) ?? 'an event',
+      eventType: live.find((e) => e.id === s.eventId)?.eventType ?? 'event',
+    }));
+
+  // The next one still to play, by sequence -- what the league wants to know
+  // after "who is winning".
+  const nextEvent = live
+    .filter((e) => e.status === 'scheduled')
+    .sort((a, b) => a.sequence - b.sequence)[0];
+
   return {
     leagueName,
     year,
@@ -124,5 +142,7 @@ export async function seasonRecapInput(
       fsApplied: s.fsApplied,
       eventLabel: labelOf.get(s.eventId) ?? 'an event',
     })),
+    winners,
+    nextEventLabel: nextEvent ? (labelOf.get(nextEvent.id) ?? null) : null,
   };
 }
