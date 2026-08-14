@@ -10,6 +10,11 @@ import {
 } from '@/lib/data/queries';
 import { getEntryHandicaps, getSeasonRow, isLeagueAdmin } from '@/lib/data/admin';
 import { saveEventScores, clearScore } from '@/lib/actions/scores';
+import { postEventRecap } from '@/lib/actions/recaps';
+import { eventRecapInput } from '@/lib/data/recaps';
+import { eventRecap } from '@/lib/domain/recap';
+import { discordConfigured } from '@/lib/discord';
+import { POSTED_MESSAGE } from '@/lib/recap-messages';
 import { Card, Empty, TableWrap, Th, Td, fmt } from '@/components/ui';
 import { NavSelect } from '@/components/selectors';
 import { ScoreEntryCells } from '@/components/score-entry-cells';
@@ -21,10 +26,15 @@ export default async function AdminPage({
   searchParams,
 }: {
   params: Promise<{ league: string }>;
-  searchParams: Promise<{ year?: string; event?: string; saved?: string }>;
+  searchParams: Promise<{
+    year?: string;
+    event?: string;
+    saved?: string;
+    posted?: string;
+  }>;
 }) {
   const { league: slug } = await params;
-  const { year: yearParam, event: eventParam, saved } = await searchParams;
+  const { year: yearParam, event: eventParam, saved, posted } = await searchParams;
   const league = await getLeague(slug);
   if (!league) notFound();
 
@@ -81,6 +91,14 @@ export default async function AdminPage({
         playerIds: activePlayers.map((p) => p.id),
       })
     : new Map();
+
+  // The recap for the event on screen. Generated here so it can be read
+  // before it is sent -- but regenerated server-side on submit, so what
+  // actually posts reflects any score fixed in between.
+  const recapInput = await eventRecapInput(league.id, league.name, selectedEvent.id);
+  const eventPreview = recapInput ? eventRecap(recapInput) : null;
+  const discordReady = discordConfigured(slug);
+  const postedNote = posted ? POSTED_MESSAGE[posted] : undefined;
 
   return (
     <div className="space-y-6">
@@ -272,6 +290,81 @@ export default async function AdminPage({
             Save every row & recompute
           </button>
         </form>
+      </Card>
+
+      <Card title="Post this event's recap to Discord">
+        {postedNote ? (
+          <p
+            className={`mb-3 rounded-lg border p-3 text-sm ${
+              postedNote.tone === 'good'
+                ? 'border-fairway-500 bg-fairway-50 text-fairway-600 dark:border-fairway-600 dark:bg-fairway-900 dark:text-fairway-50'
+                : 'border-amber-400 bg-amber-50 text-amber-700 dark:border-amber-600 dark:bg-amber-950 dark:text-amber-200'
+            }`}
+          >
+            {postedNote.text}
+          </p>
+        ) : null}
+
+        <TableHint>
+          Written from the scores above, so it can&rsquo;t say anything the results
+          don&rsquo;t. Read it before you send it. The text is rebuilt at the moment you
+          post, so a score you fix after previewing is the one that goes out, and
+          posting twice sends it twice.
+        </TableHint>
+
+        {!discordReady ? (
+          <p className="mb-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs leading-relaxed text-slate-500 dark:border-slate-800 dark:bg-slate-900">
+            Posting is off until a webhook is set on the <strong>aagla-golf</strong>{' '}
+            Vercel project — see the note on{' '}
+            <Link
+              href={`/${slug}/admin/seasons`}
+              className="underline hover:text-fairway-600"
+            >
+              any season&rsquo;s page
+            </Link>{' '}
+            for the details. Adding the variable only takes effect on the next deploy.
+          </p>
+        ) : null}
+
+        {eventPreview ? (
+          <>
+            <pre className="whitespace-pre-wrap rounded-md bg-slate-50 p-3 text-xs leading-relaxed dark:bg-slate-950">
+              {eventPreview}
+            </pre>
+            <form action={postEventRecap} className="mt-2">
+              <input type="hidden" name="leagueId" value={league.id} />
+              <input type="hidden" name="leagueName" value={league.name} />
+              <input type="hidden" name="slug" value={slug} />
+              <input type="hidden" name="seasonId" value={seasonRow?.id ?? ''} />
+              <input type="hidden" name="eventId" value={selectedEvent.id} />
+              {/* Come back here rather than to the season screen -- posting
+                  straight after entering the scores is the whole point. */}
+              <input type="hidden" name="returnTo" value="admin" />
+              <input type="hidden" name="year" value={year} />
+              <ConfirmSubmitButton
+                confirmText="Post this recap to Discord? Everyone in the channel will see it."
+                className="rounded-md border border-slate-200 px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-800"
+              >
+                Post recap
+              </ConfirmSubmitButton>
+            </form>
+          </>
+        ) : (
+          <Empty>
+            Nothing to recap yet — enter a score above and it&rsquo;ll appear here.
+          </Empty>
+        )}
+
+        <p className="mt-3 text-xs text-slate-400">
+          Season recaps, and recaps for any other event, live on{' '}
+          <Link
+            href={`/${slug}/admin/seasons`}
+            className="underline hover:text-fairway-600"
+          >
+            the season&rsquo;s page
+          </Link>
+          .
+        </p>
       </Card>
     </div>
   );

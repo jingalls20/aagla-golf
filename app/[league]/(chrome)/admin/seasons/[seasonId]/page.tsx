@@ -14,32 +14,11 @@ import { postEventRecap, postSeasonRecap } from '@/lib/actions/recaps';
 import { eventRecapInput, seasonRecapInput } from '@/lib/data/recaps';
 import { eventLabel, eventRecap, seasonRecap } from '@/lib/domain/recap';
 import { discordConfigured, webhookEnvCandidates } from '@/lib/discord';
+import { POSTED_MESSAGE } from '@/lib/recap-messages';
 import { Badge, Card, Empty, TableWrap, Th, Td } from '@/components/ui';
 import { AddEventsForm } from '@/components/add-events-form';
 import { TableHint } from '@/components/table-hint';
 import { ConfirmSubmitButton } from '@/components/confirm-button';
-
-/** What the Discord post attempt did, in words an admin can act on. */
-const POSTED_MESSAGE: Record<string, { tone: 'good' | 'bad'; text: string }> = {
-  ok: { tone: 'good', text: 'Posted to Discord.' },
-  empty: {
-    tone: 'bad',
-    text: 'Nothing to post yet — no scores have been recorded for that one.',
-  },
-  missing: { tone: 'bad', text: 'That event no longer exists.' },
-  unconfigured: {
-    tone: 'bad',
-    text: 'No Discord webhook is configured for this chapter yet. See the note below.',
-  },
-  rejected: {
-    tone: 'bad',
-    text: 'Discord rejected the webhook. It may have been deleted or regenerated.',
-  },
-  unreachable: {
-    tone: 'bad',
-    text: 'Could not reach Discord. Try again in a moment.',
-  },
-};
 
 export default async function SeasonEventsPage({
   params,
