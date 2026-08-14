@@ -224,8 +224,22 @@ export default async function AdminPage({
                 const existing = resultOf.get(p.id);
                 const handicap = handicapOf.get(p.id);
                 return (
-                  <tr key={p.id}>
-                    <Td>{p.name}</Td>
+                  <tr
+                    key={p.id}
+                    // Shaded back so a row that is already done reads as
+                    // settled rather than as one more blank to fill in.
+                    className={
+                      existing ? 'bg-slate-50/80 dark:bg-slate-900/40' : undefined
+                    }
+                  >
+                    <Td>
+                      {p.name}
+                      {existing ? (
+                        <span className="ml-2 align-middle text-[10px] uppercase tracking-wide text-slate-400">
+                          saved
+                        </span>
+                      ) : null}
+                    </Td>
                     <Td align="right" muted>
                       {handicap ? (
                         <>
@@ -246,6 +260,7 @@ export default async function AdminPage({
                       defaultDiff={existing?.courseDifferential || ''}
                       defaultDnp={existing?.source === 'dnp'}
                       handicap={handicap ? handicap.fs : null}
+                      saved={Boolean(existing)}
                     />
                     <Td align="right" muted>
                       {existing?.source === 'dnp' ? (

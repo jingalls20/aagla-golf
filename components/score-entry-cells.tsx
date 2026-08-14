@@ -30,6 +30,7 @@ export function ScoreEntryCells({
   defaultDiff,
   defaultDnp,
   handicap,
+  saved = false,
 }: {
   playerId: string;
   defaultScore: number | string;
@@ -38,6 +39,8 @@ export function ScoreEntryCells({
   /** Locked, or the projection that would lock on first save. Null when the
    *  player has no prior rounds at all, which the server treats as 0. */
   handicap: number | null;
+  /** This player already has a result for the event. */
+  saved?: boolean;
 }) {
   const initialScore = String(defaultScore ?? '');
   const initialDiff = String(defaultDiff ?? '');
@@ -45,6 +48,19 @@ export function ScoreEntryCells({
   const [score, setScore] = useState(initialScore);
   const [diff, setDiff] = useState(initialDiff);
   const [dnp, setDnp] = useState(defaultDnp);
+
+  /**
+   * A row with a result already in it starts locked.
+   *
+   * The screen's ordinary job is filling in blanks as cards come in, so a
+   * pre-filled box looks exactly like an empty one you have already typed
+   * into -- which is how a good round gets quietly replaced by whatever the
+   * next person dictates. Locking costs one click on the rows being
+   * corrected, which are the minority, and removes the failure mode
+   * entirely on the rest.
+   */
+  const [unlocked, setUnlocked] = useState(false);
+  const locked = saved && !unlocked;
 
   const changed = score !== initialScore || diff !== initialDiff || dnp !== defaultDnp;
 
@@ -59,6 +75,43 @@ export function ScoreEntryCells({
           courseDifferential: diffNum,
         })
       : null;
+
+  // A locked row submits nothing at all. Disabled inputs are left out of the
+  // FormData entirely, so "save every row" cannot touch a player whose score
+  // was never unlocked -- the protection is in the submitted data, not just
+  // in what the screen looks like.
+  if (locked) {
+    return (
+      <>
+        <Td align="right" muted>
+          {initialDiff === '' ? '0' : initialDiff}
+        </Td>
+        <Td align="right" className="bg-slate-50 dark:bg-slate-900/60">
+          <div className="flex items-center justify-end gap-3">
+            <span className="tabular-nums text-sm font-semibold text-slate-500 dark:text-slate-400">
+              {defaultDnp ? 'DNP' : toPar(Number(initialScore))}
+            </span>
+            <button
+              type="button"
+              onClick={() => setUnlocked(true)}
+              className="rounded-md border border-slate-200 px-2 py-0.5 text-xs text-slate-500 hover:bg-white hover:text-fairway-600 dark:border-slate-700 dark:hover:bg-slate-800"
+            >
+              Edit
+            </button>
+          </div>
+        </Td>
+        <Td align="right">
+          {net === null ? (
+            <span className="text-slate-300">—</span>
+          ) : (
+            <span className="tabular-nums font-semibold text-slate-500 dark:text-slate-400">
+              {toPar(net)}
+            </span>
+          )}
+        </Td>
+      </>
+    );
+  }
 
   return (
     <>
@@ -84,6 +137,7 @@ export function ScoreEntryCells({
             onChange={(e) => setScore(e.target.value)}
             placeholder="—"
             disabled={dnp}
+            autoFocus={saved}
             aria-label="Strokes over par"
             className="w-20 rounded-md border-2 border-fairway-500 bg-white px-2 py-1 text-right text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-fairway-500 disabled:border-slate-200 disabled:bg-slate-100 disabled:font-normal disabled:text-slate-400 dark:bg-slate-900 dark:disabled:border-slate-800 dark:disabled:bg-slate-800 dark:disabled:text-slate-600"
           />
@@ -96,6 +150,20 @@ export function ScoreEntryCells({
             />
             DNP
           </label>
+          {saved && !changed ? (
+            <button
+              type="button"
+              onClick={() => {
+                setScore(initialScore);
+                setDiff(initialDiff);
+                setDnp(defaultDnp);
+                setUnlocked(false);
+              }}
+              className="text-xs text-slate-400 hover:text-slate-600"
+            >
+              Cancel
+            </button>
+          ) : null}
           {changed ? (
             <button
               type="submit"
