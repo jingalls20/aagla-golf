@@ -131,9 +131,13 @@ export async function postSeasonRecap(formData: FormData): Promise<void> {
   if (!leagueId || !slug || !seasonId || !Number.isFinite(year)) redirect(`/${slug}`);
   if (!(await isLeagueAdmin(leagueId))) redirect(`/${slug}`);
 
+  // Posted from either screen now, so it returns to whichever asked. No event
+  // to reselect: the season status isn't about one.
+  const returnTo = returnToOf(formData, '');
+
   const text = seasonRecap(await seasonRecapInput(leagueId, leagueName, year));
-  if (!text) back(slug, seasonId, 'empty', null);
+  if (!text) back(slug, seasonId, 'empty', returnTo);
 
   const result = await postToDiscord(slug, fitToDiscord(text));
-  back(slug, seasonId, result.ok ? 'ok' : result.reason, null);
+  back(slug, seasonId, result.ok ? 'ok' : result.reason, returnTo);
 }

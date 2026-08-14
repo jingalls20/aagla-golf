@@ -10,9 +10,13 @@ import {
 } from '@/lib/data/queries';
 import { getEntryHandicaps, getSeasonRow, isLeagueAdmin } from '@/lib/data/admin';
 import { saveEventScores, clearScore } from '@/lib/actions/scores';
-import { postAnnouncement, postEventRecap } from '@/lib/actions/recaps';
-import { eventRecapInput } from '@/lib/data/recaps';
-import { ANNOUNCEMENT_LIMIT, eventRecap } from '@/lib/domain/recap';
+import {
+  postAnnouncement,
+  postEventRecap,
+  postSeasonRecap,
+} from '@/lib/actions/recaps';
+import { eventRecapInput, seasonRecapInput } from '@/lib/data/recaps';
+import { ANNOUNCEMENT_LIMIT, eventRecap, seasonRecap } from '@/lib/domain/recap';
 import { discordConfigured } from '@/lib/discord';
 import { POSTED_MESSAGE } from '@/lib/recap-messages';
 import { Card, Empty, TableWrap, Th, Td, fmt } from '@/components/ui';
@@ -97,6 +101,9 @@ export default async function AdminPage({
   // actually posts reflects any score fixed in between.
   const recapInput = await eventRecapInput(league.id, league.name, selectedEvent.id);
   const eventPreview = recapInput ? eventRecap(recapInput) : null;
+  const seasonPreview = seasonRecap(
+    await seasonRecapInput(league.id, league.name, year),
+  );
   const discordReady = discordConfigured(slug);
   const postedNote = posted ? POSTED_MESSAGE[posted] : undefined;
 
@@ -307,7 +314,7 @@ export default async function AdminPage({
         </form>
       </Card>
 
-      <Card title="Post this event's recap to Discord">
+      <Card title="Post to Discord">
         {postedNote ? (
           <p
             className={`mb-3 rounded-lg border p-3 text-sm ${
@@ -341,9 +348,14 @@ export default async function AdminPage({
           </p>
         ) : null}
 
+        <p className="text-sm font-medium">
+          This event &mdash;{' '}
+          {selectedEvent.name ??
+            `Event #${selectedEvent.legacyId ?? selectedEvent.sequence}`}
+        </p>
         {eventPreview ? (
           <>
-            <pre className="whitespace-pre-wrap rounded-md bg-slate-50 p-3 text-xs leading-relaxed dark:bg-slate-950">
+            <pre className="mt-2 whitespace-pre-wrap rounded-md bg-slate-50 p-3 text-xs leading-relaxed dark:bg-slate-950">
               {eventPreview}
             </pre>
             <form action={postEventRecap} className="mt-2">
@@ -369,6 +381,38 @@ export default async function AdminPage({
             Nothing to recap yet — enter a score above and it&rsquo;ll appear here.
           </Empty>
         )}
+
+        <div className="mt-5 border-t border-slate-100 pt-4 dark:border-slate-800">
+          <p className="text-sm font-medium">Season status &mdash; {year}</p>
+          <p className="mt-0.5 text-xs text-slate-400">
+            Where the points race stands, who has won what so far, and how much of the
+            season is left. Good for a mid-season nudge, and for the wrap-up once the
+            last card is in.
+          </p>
+          {seasonPreview ? (
+            <>
+              <pre className="mt-2 whitespace-pre-wrap rounded-md bg-slate-50 p-3 text-xs leading-relaxed dark:bg-slate-950">
+                {seasonPreview}
+              </pre>
+              <form action={postSeasonRecap} className="mt-2">
+                <input type="hidden" name="leagueId" value={league.id} />
+                <input type="hidden" name="leagueName" value={league.name} />
+                <input type="hidden" name="slug" value={slug} />
+                <input type="hidden" name="seasonId" value={seasonRow?.id ?? ''} />
+                <input type="hidden" name="returnTo" value="admin" />
+                <input type="hidden" name="year" value={year} />
+                <ConfirmSubmitButton
+                  confirmText={`Post the ${year} season status to Discord? Everyone in the channel will see it.`}
+                  className="rounded-md border border-slate-200 px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-800"
+                >
+                  Post season status
+                </ConfirmSubmitButton>
+              </form>
+            </>
+          ) : (
+            <Empty>No standings yet this season.</Empty>
+          )}
+        </div>
 
         <div className="mt-5 border-t border-slate-100 pt-4 dark:border-slate-800">
           <p className="text-sm font-medium">Or say something in your own words</p>
@@ -400,7 +444,7 @@ export default async function AdminPage({
         </div>
 
         <p className="mt-3 text-xs text-slate-400">
-          Season recaps, and recaps for any other event, live on{' '}
+          Recaps for any other event in the season live on{' '}
           <Link
             href={`/${slug}/admin/seasons`}
             className="underline hover:text-fairway-600"
