@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512"
+     viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="field" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#17643a"/>
+      <stop offset="100%" stop-color="#12301f"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" fill="url(#field)"/>
+  <rect x="44" y="44" width="424" height="424" rx="92"
+        fill="none" stroke="#FFFFFF" stroke-width="11"/>
+  <text x="108" y="126" text-anchor="middle" font-family="Poppins" font-weight="700" font-size="74" fill="#F2C230">A</text>
+<text x="108" y="200" text-anchor="middle" font-family="Poppins" font-weight="700" font-size="74" fill="#F2C230">A</text>
+<text x="108" y="274" text-anchor="middle" font-family="Poppins" font-weight="700" font-size="74" fill="#F2C230">G</text>
+<text x="108" y="348" text-anchor="middle" font-family="Poppins" font-weight="700" font-size="74" fill="#F2C230">L</text>
+<text x="108" y="422" text-anchor="middle" font-family="Poppins" font-weight="700" font-size="74" fill="#F2C230">A</text>
+  
+    <g fill="#FFFFFF" stroke="#FFFFFF" stroke-linecap="round"
+       stroke-linejoin="round">
+      <!-- Club: out of the hands at a shallower angle than the forearms,
+           so the two read as two things rather than one long bar. -->
+      <path d="M 250 150 L 416 68" stroke-width="8" fill="none"/>
+      <path d="M 408 62 L 428 74" stroke-width="15" fill="none"/>
+
+      <!-- Legs, tapered so the thigh carries the weight and the ankle
+           doesn't. Both start high enough to finish under the torso. -->
+      <path d="M 288 262 C 280 320 274 374 270 424
+               L 302 428 C 308 376 316 322 326 266 Z"/>
+      <path d="M 328 260 C 350 310 370 350 394 410
+               L 420 398 C 400 342 382 300 366 258 Z"/>
+      <!-- Front foot flat; back foot up on the toe, which is where a
+           follow-through actually leaves you. -->
+      <path d="M 264 422 L 304 426 L 306 446 L 258 442 Z"/>
+      <path d="M 388 398 L 416 386 L 430 410 L 402 422 Z"/>
+
+      <!-- Arms: shoulder to a bent elbow to both hands on the grip, wide
+           enough to read as arms at icon size. -->
+      <path d="M 288 210 C 272 190 262 176 248 158
+               L 268 138 C 286 158 306 180 322 200 Z"/>
+      <path d="M 296 224 C 280 200 264 180 246 160
+               L 258 146 C 282 168 308 194 324 216 Z"/>
+
+      <!-- Torso last, so it covers every joint underneath. Narrow at the
+           waist, hips driven through, back arched. -->
+      <path d="M 286 180 C 272 218 274 254 286 298
+               L 348 292 C 354 246 346 208 336 180 Z"/>
+
+      <!-- Head, turned to watch the ball. -->
+      <circle cx="312" cy="144" r="28"/>
+    </g>
+</svg>

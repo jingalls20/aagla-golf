@@ -20,9 +20,9 @@ export default function manifest(): MetadataRoute.Manifest {
     description: 'Scores, handicaps and season standings for the AAGLA golf leagues',
     start_url: '/',
     display: 'standalone',
-    // The gold from the icon, so the splash and title bar match the tile the
-    // user just tapped rather than flashing white in between.
-    background_color: '#e8c75c',
+    // The green from the badge, so the splash matches the tile the user just
+    // tapped rather than flashing a colour the icon no longer uses.
+    background_color: '#17643a',
     theme_color: '#12301f',
     icons: [
       { src: '/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
