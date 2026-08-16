@@ -32,20 +32,35 @@ export function Card({ title, children }: { title?: ReactNode; children: ReactNo
 export function TableWrap({
   children,
   sticky = false,
+  minContent = false,
 }: {
   children: ReactNode;
   sticky?: boolean;
+  /**
+   * Let the table be as wide as its contents need, scrolling the wrapper
+   * rather than squeezing the columns.
+   *
+   * `w-full` alone pins the table to the box, and when the columns want more
+   * room than that the browser compresses them. Text set to
+   * `whitespace-nowrap` does not wrap in response -- it simply runs past its
+   * cell into the next one, which is how a long name ended up touching the
+   * score beside it. `min-w-max` sets a floor at the natural width, so the
+   * table still stretches to fill a wide card and starts scrolling rather
+   * than overlapping on a narrow one.
+   */
+  minContent?: boolean;
 }) {
+  const table = `w-full ${minContent ? 'min-w-max' : 'min-w-full'} border-collapse text-sm`;
   if (sticky) {
     return (
       <div className="max-h-[75vh] overflow-auto rounded-lg border border-slate-200 dark:border-slate-800">
-        <table className="w-full min-w-full border-collapse text-sm">{children}</table>
+        <table className={table}>{children}</table>
       </div>
     );
   }
   return (
     <div className="-mx-4 overflow-x-auto px-4">
-      <table className="w-full min-w-full border-collapse text-sm">{children}</table>
+      <table className={table}>{children}</table>
     </div>
   );
 }

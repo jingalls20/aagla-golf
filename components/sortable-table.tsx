@@ -118,7 +118,7 @@ export function SortableTable({
   }
 
   return (
-    <TableWrap sticky={sticky}>
+    <TableWrap sticky={sticky} minContent={dense}>
       <thead>
         <tr>
           {expandable ? (
@@ -134,7 +134,9 @@ export function SortableTable({
               onClick={c.sortable ? () => onSort(c.key) : undefined}
               className={`border-b border-slate-200 ${
                 dense
-                  ? 'px-1 pb-1.5 text-[10px] leading-[1.2] tracking-tight'
+                  ? `pb-1.5 text-[10px] leading-[1.2] tracking-tight ${
+                      i === 0 ? 'pl-1 pr-4' : 'px-1'
+                    }`
                   : 'pb-2 pr-3 text-xs tracking-wide'
               } ${ALIGN[c.align ?? 'left']} font-semibold uppercase text-slate-500 dark:border-slate-800 ${
                 c.sortable ? 'cursor-pointer select-none hover:text-fairway-600' : ''
@@ -216,7 +218,13 @@ export function SortableTable({
                   <td
                     key={c.key}
                     className={`border-b border-slate-100 ${
-                      dense ? 'px-1 py-1.5' : 'py-2 pr-3'
+                      dense
+                        ? // The first column names the row, so it keeps real
+                          // padding; only the numeric columns get tightened.
+                          // Without this the longest name sits flush against
+                          // the divider and reads as one word with the score.
+                          `py-1.5 ${i === 0 ? 'pl-1 pr-4' : 'px-1'}`
+                        : 'py-2 pr-3'
                     } ${ALIGN[c.align ?? 'left']} dark:border-slate-800/60 ${
                       sticky && i === 0 && pinFirstColumn
                         ? expandable
