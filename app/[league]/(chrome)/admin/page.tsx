@@ -281,17 +281,15 @@ export default async function AdminPage({
                     </Td>
                     <Td align="right">
                       {existing ? (
-                        // Routed via formAction, not a nested <form> -- this
-                        // row lives inside the score-entry form already, and
-                        // HTML doesn't allow a <form> inside a <form>. The
-                        // name/value pair below is how clearScore learns
-                        // which player, since it isn't a dedicated hidden
-                        // input; leagueId/eventId/slug/year ride along on
-                        // the enclosing form's own hidden inputs.
+                        // Submits its own form, declared after the grid and
+                        // reached by id. A row cannot hold a <form> of its
+                        // own -- this one sits inside the score-entry form,
+                        // and HTML forbids nesting -- and routing the button
+                        // to a different action with `formAction` silently
+                        // drops its name/value, which is what broke Clear.
+                        // See ConfirmSubmitButton for the detail.
                         <ConfirmSubmitButton
-                          formAction={clearScore}
-                          name="playerId"
-                          value={p.id}
+                          form={`clear-${p.id}`}
                           confirmText={`Clear ${p.name}'s entry for this event? This removes it entirely, not just its score.`}
                           className="text-xs text-slate-400 hover:text-red-600"
                         >
@@ -312,6 +310,21 @@ export default async function AdminPage({
             Save every row & recompute
           </button>
         </form>
+
+        {/* One tiny form per player who has a result, sitting outside the
+            score-entry form because HTML will not nest them. Each row's
+            Clear button reaches its own by id, so every field the action
+            needs -- including which player -- is a real input rather than
+            something inferred from which button was pressed. */}
+        {results.map((r) => (
+          <form key={r.playerId} id={`clear-${r.playerId}`} action={clearScore} hidden>
+            <input type="hidden" name="leagueId" value={league.id} />
+            <input type="hidden" name="eventId" value={selectedEvent.id} />
+            <input type="hidden" name="slug" value={slug} />
+            <input type="hidden" name="year" value={year} />
+            <input type="hidden" name="playerId" value={r.playerId} />
+          </form>
+        ))}
       </Card>
 
       <Card title="Post to Discord">

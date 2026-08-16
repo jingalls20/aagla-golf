@@ -221,10 +221,14 @@ export async function clearScore(formData: FormData): Promise<void> {
   const slug = String(formData.get('slug') ?? '');
   const year = Number(formData.get('year'));
 
-  if (!leagueId || !eventId || !playerId || !slug) {
-    throw new Error(
-      'Missing leagueId, eventId, playerId, or slug on the clear-score form.',
-    );
+  // Name the field that is actually absent. The old message listed all four
+  // and left the next person to guess which, which cost real time when this
+  // form lost its playerId to a React quirk -- see ConfirmSubmitButton.
+  const missing = Object.entries({ leagueId, eventId, playerId, slug })
+    .filter(([, v]) => !v)
+    .map(([k]) => k);
+  if (missing.length > 0) {
+    throw new Error(`Clear-score form was submitted without ${missing.join(', ')}.`);
   }
   if (!(await isLeagueAdmin(leagueId))) {
     redirect(`/${slug}`);

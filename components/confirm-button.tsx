@@ -12,28 +12,37 @@ export function ConfirmSubmitButton({
   children,
   confirmText,
   className,
-  formAction,
+  form,
   name,
   value,
 }: {
   children: ReactNode;
   confirmText: string;
   className?: string;
-  /** Route this specific button to a different server action than the
-   *  enclosing form's own -- lets one row's "Clear" live inside a bigger
-   *  form (the score-entry grid) without nesting a second <form>, which
-   *  HTML doesn't allow. */
-  formAction?: (formData: FormData) => void | Promise<void>;
-  /** Paired with `value`, included in the submitted FormData only when this
-   *  button is the one clicked -- how a per-row id reaches the action
-   *  without a dedicated hidden input for every row. */
+  /**
+   * Submit a form this button is not inside, by its id.
+   *
+   * The HTML `form` attribute exists precisely for this, and it is how a
+   * row's "Clear" inside the score-entry grid submits its own little form
+   * without nesting one, which HTML forbids.
+   *
+   * This replaced a `formAction` pointing at a different server action.
+   * That looked right and silently lost data: React, on seeing a submitter
+   * with its own `formAction`, adopts that action and then sets its
+   * internal `submitter` to null -- after which it builds the payload with
+   * a plain `new FormData(form)`, and a plain FormData never includes the
+   * submit button's own name/value pair. So the row id never arrived and
+   * the action threw on every click. Anything a server action needs has to
+   * be a real field in the form it submits.
+   */
+  form?: string;
   name?: string;
   value?: string;
 }) {
   return (
     <button
       type="submit"
-      formAction={formAction}
+      form={form}
       name={name}
       value={value}
       className={className}
