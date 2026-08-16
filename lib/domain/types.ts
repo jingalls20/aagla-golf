@@ -92,8 +92,13 @@ export interface ScoreResult {
 export interface StandingRow {
   playerId: string;
   totalPoints: number;
+  /** Every result on the card, including any the drop rule set aside --
+   *  the player turned out for it either way. */
   eventsPlayed: number;
   seasonRank: number;
+  /** Results left out of `totalPoints` by the season's drop rule, so the
+   *  grid can strike them through. Empty where no rule applies. */
+  droppedEventIds: string[];
 }
 
 /** The outcome of a handicap calculation, with its reasoning attached. */

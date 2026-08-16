@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
-import { computeStandings } from '@/lib/domain/standings';
+import { computeStandings, NO_DROP, type DropRule } from '@/lib/domain/standings';
 import { handicapBreakdown, projectHandicap } from '@/lib/domain/handicap';
 import type { HandicapBreakdown } from '@/lib/domain/handicap';
 import type { CareerRound } from '@/lib/domain/career';
@@ -248,24 +248,65 @@ export interface StandingWithName extends StandingRow {
  * including Championships would inflate "events played" without moving any
  * total, since they are worth zero.
  */
+/**
+ * The season's drop rule, read from the season rather than the code.
+ *
+ * Seattle discards each player's worst finish; Iowa discards nothing. That
+ * difference is data, so this looks it up instead of branching on which
+ * chapter is being viewed -- and the rule can start in one season without
+ * rewriting the ones before it. A missing row, or a count of zero, gives
+ * NO_DROP and the arithmetic everyone has always had.
+ */
+async function getDropRule(leagueId: string, year: number): Promise<DropRule> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from('seasons')
+    .select('drop_worst_count')
+    .eq('league_id', leagueId)
+    .eq('year', year)
+    .maybeSingle();
+
+  const count = Number(
+    (data as { drop_worst_count?: number } | null)?.drop_worst_count,
+  );
+  if (!Number.isFinite(count) || count <= 0) return NO_DROP;
+
+  // Two results before the rule bites, so someone who has turned out once
+  // cannot sit on an empty card at the top of the table.
+  return { dropWorst: count, minResults: 2 };
+}
+
 export async function getStandings(
   leagueId: string,
   year: number,
 ): Promise<StandingWithName[]> {
-  const [scores, events, handicaps] = await Promise.all([
+  const [scores, events, handicaps, rule] = await Promise.all([
     getSeasonScores(leagueId, year),
     getEvents(leagueId, year),
     getHandicaps(leagueId, year),
+    getDropRule(leagueId, year),
   ]);
 
   const countsTowardSeason = new Set(
     events.filter((e) => e.eventType !== 'championship').map((e) => e.id),
   );
+  const eventById = new Map(events.map((e) => [e.id, e]));
 
   const ranked = computeStandings(
     scores
       .filter((s) => countsTowardSeason.has(s.eventId) && s.eventPoints !== null)
-      .map((s) => ({ playerId: s.playerId, eventPoints: s.eventPoints as number })),
+      .map((s) => {
+        const event = eventById.get(s.eventId);
+        return {
+          playerId: s.playerId,
+          eventPoints: s.eventPoints as number,
+          eventId: s.eventId,
+          sequence: event?.sequence,
+          // Majors are spared by the rule.
+          droppable: event?.eventType !== 'major',
+        };
+      }),
+    rule,
   );
 
   const nameOf = new Map<string, string>(

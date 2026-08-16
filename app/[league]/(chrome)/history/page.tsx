@@ -179,6 +179,16 @@ export default async function HistoryPage({
       sortable: true,
     })),
   ];
+  // What the season's drop rule set aside, per player, so the grid can strike
+  // it through. Empty for a chapter or season without the rule.
+  const droppedOf = new Map(
+    standings.map((s): [string, ReadonlySet<string>] => [
+      s.playerId,
+      new Set(s.droppedEventIds),
+    ]),
+  );
+  const droppedAny = standings.some((s) => s.droppedEventIds.length > 0);
+
   const gridRows: SortableRow[] = rowPlayers.map(([playerId, meta]) => {
     const cells: Record<string, ReactNode> = {
       player: (
@@ -202,12 +212,28 @@ export default async function HistoryPage({
     for (const e of played) {
       const s = cell.get(`${playerId}:${e.id}`);
       const dnp = s?.source === 'missed' || s?.source === 'dnp';
+      // Struck through and red: on the card, but left out of the total.
+      // Colour alone would not say which of those two things it means.
+      const droppedHere = droppedOf.get(playerId)?.has(e.id) ?? false;
       cells[e.id] = !s ? (
         <span className="text-slate-400">—</span>
       ) : (
-        <span className={`whitespace-nowrap ${dnp ? 'text-slate-400' : ''}`}>
+        <span
+          className={`whitespace-nowrap ${
+            droppedHere
+              ? 'text-red-500 line-through decoration-red-400 dark:text-red-400'
+              : dnp
+                ? 'text-slate-400'
+                : ''
+          }`}
+          title={droppedHere ? 'Dropped: worst finish of the season' : undefined}
+        >
           <span className="font-semibold tabular-nums">{s.place ?? '—'}</span>
-          <span className="ml-1 text-[10px] leading-tight tracking-tight text-slate-400">
+          <span
+            className={`ml-1 text-[10px] leading-tight tracking-tight ${
+              droppedHere ? 'text-red-400' : 'text-slate-400'
+            }`}
+          >
             {dnp ? 'DNP' : toPar(s.netScore)}&middot;{fmt(s.eventPoints)}
           </span>
         </span>
@@ -261,6 +287,14 @@ export default async function HistoryPage({
           Each cell shows finishing place; below it, net score relative to par and event
           points earned. A dash means no round recorded. Click a column header to sort
           by that event.
+          {droppedAny ? (
+            <>
+              {' '}
+              A result <span className="text-red-500 line-through">in red</span> was
+              that season&rsquo;s dropped worst finish: on the card, but left out of the
+              total. Majors were never dropped.
+            </>
+          ) : null}
         </TableHint>
         {played.length === 0 || gridRows.length === 0 ? (
           <Empty>No events played that season.</Empty>

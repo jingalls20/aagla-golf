@@ -180,6 +180,16 @@ export default async function StandingsPage({
       sortable: true,
     })),
   ];
+  // What the season's drop rule set aside, per player, so the grid can strike
+  // it through. Empty for a chapter or season without the rule.
+  const droppedOf = new Map(
+    standings.map((s): [string, ReadonlySet<string>] => [
+      s.playerId,
+      new Set(s.droppedEventIds),
+    ]),
+  );
+  const droppedAny = standings.some((s) => s.droppedEventIds.length > 0);
+
   const gridRows: SortableRow[] = rowPlayers.map(([playerId, meta]) => {
     const cells: Record<string, ReactNode> = {
       player: (
@@ -203,12 +213,28 @@ export default async function StandingsPage({
     for (const e of seasonEvents) {
       const s = cell.get(`${playerId}:${e.id}`);
       const dnp = s?.source === 'missed' || s?.source === 'dnp';
+      // Struck through and red: on the card, but left out of the total.
+      // Colour alone would not say which of those two things it means.
+      const droppedHere = droppedOf.get(playerId)?.has(e.id) ?? false;
       cells[e.id] = !s ? (
         <span className="text-slate-400">—</span>
       ) : (
-        <span className={`whitespace-nowrap ${dnp ? 'text-slate-400' : ''}`}>
+        <span
+          className={`whitespace-nowrap ${
+            droppedHere
+              ? 'text-red-500 line-through decoration-red-400 dark:text-red-400'
+              : dnp
+                ? 'text-slate-400'
+                : ''
+          }`}
+          title={droppedHere ? 'Dropped: worst finish of the season' : undefined}
+        >
           <span className="font-semibold tabular-nums">{s.place ?? '—'}</span>
-          <span className="ml-1 text-[10px] leading-tight tracking-tight text-slate-400">
+          <span
+            className={`ml-1 text-[10px] leading-tight tracking-tight ${
+              droppedHere ? 'text-red-400' : 'text-slate-400'
+            }`}
+          >
             {dnp ? 'DNP' : toPar(s.netScore)}&middot;{fmt(s.eventPoints)}
           </span>
         </span>
@@ -260,6 +286,17 @@ export default async function StandingsPage({
           below it, net score relative to par and event points earned. A dash means that
           round hasn&rsquo;t been recorded yet. Click a column header to sort by that
           event.
+          {droppedAny ? (
+            <>
+              {' '}
+              A result <span className="text-red-500 line-through">in red</span> is this
+              chapter&rsquo;s dropped worst finish: it stays on the card but is left out
+              of the season total. Majors are never dropped, and the rule only applies
+              once a player has two results to choose between. A DNP counts as a result
+              and can be the one dropped; an event with no entry yet is not a result at
+              all, so it is never mistaken for someone&rsquo;s worst.
+            </>
+          ) : null}
         </TableHint>
         {seasonEvents.length === 0 ? (
           <Empty>No events scheduled for {year} yet.</Empty>
