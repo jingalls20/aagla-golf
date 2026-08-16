@@ -54,6 +54,7 @@ export function SortableTable({
   defaultSort = null,
   sticky = false,
   pinFirstColumn = true,
+  dense = false,
 }: {
   columns: SortableColumn[];
   rows: SortableRow[];
@@ -68,6 +69,17 @@ export function SortableTable({
    *  end without scrolling sideways, where pinning buys nothing and only
    *  adds a seam down the left. */
   pinFirstColumn?: boolean;
+  /**
+   * Tighten every cell so a wide grid fits without scrolling sideways.
+   *
+   * The events grid is one player per row and one column per event, and the
+   * page gives it about 960px. At the default padding and type size seven
+   * events plus a name column overflow that, which is what pushed the last
+   * two events off screen and wrapped the header three lines deep. Dense
+   * mode is the same table with less air in it: smaller header type, tighter
+   * horizontal padding, shorter rows.
+   */
+  dense?: boolean;
 }) {
   const [sort, setSort] = useState<SortState>(defaultSort);
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
@@ -120,7 +132,11 @@ export function SortableTable({
             <th
               key={c.key}
               onClick={c.sortable ? () => onSort(c.key) : undefined}
-              className={`border-b border-slate-200 pb-2 pr-3 ${ALIGN[c.align ?? 'left']} text-xs font-semibold uppercase tracking-wide text-slate-500 dark:border-slate-800 ${
+              className={`border-b border-slate-200 ${
+                dense
+                  ? 'px-1 pb-1.5 text-[10px] leading-[1.2] tracking-tight'
+                  : 'pb-2 pr-3 text-xs tracking-wide'
+              } ${ALIGN[c.align ?? 'left']} font-semibold uppercase text-slate-500 dark:border-slate-800 ${
                 c.sortable ? 'cursor-pointer select-none hover:text-fairway-600' : ''
               } ${
                 sticky
@@ -199,7 +215,9 @@ export function SortableTable({
                 {columns.map((c, i) => (
                   <td
                     key={c.key}
-                    className={`border-b border-slate-100 py-2 pr-3 ${ALIGN[c.align ?? 'left']} dark:border-slate-800/60 ${
+                    className={`border-b border-slate-100 ${
+                      dense ? 'px-1 py-1.5' : 'py-2 pr-3'
+                    } ${ALIGN[c.align ?? 'left']} dark:border-slate-800/60 ${
                       sticky && i === 0 && pinFirstColumn
                         ? expandable
                           ? STICKY.columnAfterExpander

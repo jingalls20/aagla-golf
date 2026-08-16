@@ -18,6 +18,7 @@ import {
   type SortableRow,
 } from '@/components/sortable-table';
 import { TableHint } from '@/components/table-hint';
+import { eventHeaderLabel } from '@/lib/event-label';
 import { championshipHandicap } from '@/lib/domain/handicap';
 import { resolveShowInactive } from '@/lib/prefs';
 import type { ScoreRow } from '@/lib/data/queries';
@@ -167,9 +168,9 @@ export default async function StandingsPage({
       // elsewhere (Events tab), just not from this column header.
       label: (
         <span>
-          {e.name ?? `#${e.legacyId ?? e.sequence}`}
+          {eventHeaderLabel(e)}
           {e.eventType !== 'event' ? (
-            <span className="block text-[10px] font-normal normal-case text-slate-400">
+            <span className="block text-[9px] font-normal normal-case tracking-normal text-slate-400">
               {e.eventType}
             </span>
           ) : null}
@@ -187,7 +188,7 @@ export default async function StandingsPage({
           className="flex items-center gap-2 hover:text-fairway-600 hover:underline"
         >
           <Avatar name={meta.name} photoUrl={meta.photoUrl} />
-          <span>
+          <span className="whitespace-nowrap">
             {meta.name}
             {championIds.has(playerId) ? (
               <span className="ml-1" title={`${year} Championship winner`}>
@@ -205,10 +206,10 @@ export default async function StandingsPage({
       cells[e.id] = !s ? (
         <span className="text-slate-400">—</span>
       ) : (
-        <span className={dnp ? 'text-slate-400' : ''}>
-          <span className="font-medium">{s.place ?? '—'}</span>
-          <span className="ml-1 text-[10px] leading-tight text-slate-400">
-            {dnp ? 'DNP' : toPar(s.netScore)} &middot; {fmt(s.eventPoints)}pts
+        <span className={`whitespace-nowrap ${dnp ? 'text-slate-400' : ''}`}>
+          <span className="font-semibold tabular-nums">{s.place ?? '—'}</span>
+          <span className="ml-1 text-[10px] leading-tight tracking-tight text-slate-400">
+            {dnp ? 'DNP' : toPar(s.netScore)}&middot;{fmt(s.eventPoints)}
           </span>
         </span>
       );
@@ -265,7 +266,7 @@ export default async function StandingsPage({
         ) : gridRows.length === 0 ? (
           <Empty>No scores recorded for {year} yet.</Empty>
         ) : (
-          <SortableTable columns={gridColumns} rows={gridRows} sticky />
+          <SortableTable columns={gridColumns} rows={gridRows} sticky dense />
         )}
       </Card>
     </div>
