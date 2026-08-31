@@ -3,6 +3,7 @@ import { notFound } from 'next/navigation';
 import { getLeague } from '@/lib/data/queries';
 import { isLeagueAdmin } from '@/lib/data/admin';
 import { getEventsForSeason, getSeasonsAdmin } from '@/lib/data/seasons';
+import { getPlayers } from '@/lib/data/queries';
 import {
   addEvents,
   deleteEvent,
@@ -10,6 +11,7 @@ import {
   updateEvent,
   updateSeasonRules,
 } from '@/lib/actions/admin';
+import { setSeasonChampion } from '@/lib/actions/admin';
 import { postEventRecap, postSeasonRecap } from '@/lib/actions/recaps';
 import { eventRecapInput, seasonRecapInput } from '@/lib/data/recaps';
 import { eventLabel, eventRecap, seasonRecap } from '@/lib/domain/recap';
@@ -47,6 +49,13 @@ export default async function SeasonEventsPage({
   if (!season) notFound();
 
   const events = await getEventsForSeason(seasonId);
+
+  // Everyone who could be named champion. The whole roster rather than only
+  // the players with a score that day: an admin correcting an old season may
+  // well be naming somebody whose card never made it into the import.
+  const roster = (await getPlayers(league.id)).sort((a, b) =>
+    a.name.localeCompare(b.name),
+  );
 
   // Previews are generated here so the admin reads the exact shape of what
   // will be posted before posting it. The text is regenerated server-side on
@@ -217,6 +226,47 @@ export default async function SeasonEventsPage({
             </tbody>
           </TableWrap>
         )}
+      </Card>
+
+      <Card title="Championship winner">
+        <TableHint>
+          The Championship is settled on the day, and the day does not always end in a
+          scoreline &mdash; a tie is played off, and the playoff moves no scores at all.
+          Where that happens the recorded result stays a tie for ever, so the winner is
+          named here instead. Leave it on <em>Decide it from the scores</em> and the
+          season works as every other one does, taking whoever the places show in first.
+          Naming somebody sets who holds the trophy in the Hall of Champions and who
+          carries 🏆 beside their name; it changes no score, and it can be cleared
+          again.
+        </TableHint>
+        <form action={setSeasonChampion} className="flex flex-wrap items-end gap-2">
+          <input type="hidden" name="leagueId" value={league.id} />
+          <input type="hidden" name="slug" value={slug} />
+          <input type="hidden" name="seasonId" value={seasonId} />
+          <label className="flex flex-col text-[10px]">
+            <span className="mb-1 font-medium uppercase tracking-wide text-slate-400">
+              {season.year} champion
+            </span>
+            <select
+              name="championPlayerId"
+              defaultValue={season.championPlayerId ?? ''}
+              className="rounded-md border border-slate-200 bg-white px-2 py-1.5 text-sm dark:border-slate-800 dark:bg-slate-900"
+            >
+              <option value="">Decide it from the scores</option>
+              {roster.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button
+            type="submit"
+            className="rounded-md border border-slate-200 px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50 dark:border-slate-800 dark:text-slate-300 dark:hover:bg-slate-800"
+          >
+            Save champion
+          </button>
+        </form>
       </Card>
 
       <Card title="Post a recap to Discord">

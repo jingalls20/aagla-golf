@@ -516,3 +516,52 @@ export async function deleteSeason(formData: FormData): Promise<void> {
 
   redirect(`/${slug}/admin/seasons`);
 }
+
+/**
+ * Name the Championship winner for a season, or hand the decision back to
+ * the scores.
+ *
+ * The Championship is settled on the day, and the day does not always end
+ * in a scoreline: Iowa 2026 finished with two players level, they played
+ * off, and the playoff moved no scores at all. The recorded result is a
+ * real tie and no arithmetic over it will ever yield one winner, so the
+ * winner is recorded instead.
+ *
+ * An empty selection clears it, which puts the season back to reading its
+ * winner off the places -- deliberately reversible, since this is a
+ * judgement call rather than a fact about the round.
+ */
+export async function setSeasonChampion(formData: FormData): Promise<void> {
+  const leagueId = String(formData.get('leagueId') ?? '');
+  const slug = String(formData.get('slug') ?? '');
+  const seasonId = String(formData.get('seasonId') ?? '');
+  const playerId = String(formData.get('championPlayerId') ?? '').trim();
+
+  if (!leagueId || !slug || !seasonId) {
+    throw new Error('Missing leagueId, slug or seasonId on the champion form.');
+  }
+  await requireAdmin(leagueId, slug);
+
+  const supabase = await createClient();
+
+  // The named player has to belong to this league. RLS would refuse a
+  // cross-league write anyway, but pointing a season at another chapter's
+  // player would be a quiet nonsense rather than an error.
+  if (playerId) {
+    const { data: player } = await supabase
+      .from('players')
+      .select('id')
+      .eq('id', playerId)
+      .eq('league_id', leagueId)
+      .maybeSingle();
+    if (!player) throw new Error('That player is not on this league’s roster.');
+  }
+
+  const { error } = await supabase
+    .from('seasons')
+    .update({ champion_player_id: playerId || null })
+    .eq('id', seasonId);
+  if (error) throw new Error(`Setting the season champion: ${error.message}`);
+
+  redirect(`/${slug}/admin/seasons/${seasonId}`);
+}

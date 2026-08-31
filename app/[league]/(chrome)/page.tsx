@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import {
   championIdsOf,
+  getSeasonChampionId,
   currentYearOf,
   getEvents,
   getLeague,
@@ -41,17 +42,18 @@ export default async function StandingsPage({
   const year = currentYearOf(seasons);
   if (year === null) return <Empty>No seasons yet.</Empty>;
 
-  const [standings, events, scores] = await Promise.all([
+  const [standings, events, scores, namedChampionId] = await Promise.all([
     getStandings(league.id, year),
     getEvents(league.id, year),
     getSeasonScores(league.id, year),
+    getSeasonChampionId(league.id, year),
   ]);
 
   const visibleStandings = showInactive
     ? standings
     : standings.filter((s) => s.playerStatus === 'active');
 
-  const championIds = championIdsOf(events, scores);
+  const championIds = championIdsOf(events, scores, namedChampionId);
 
   // Player × event grid. Every event in the season gets a column, played or
   // not -- an admin scanning the season wants to see what's still ahead, not

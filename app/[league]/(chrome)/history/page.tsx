@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import {
   championIdsOf,
+  getSeasonChampionId,
   currentYearOf,
   getEvents,
   getLeague,
@@ -63,17 +64,18 @@ export default async function HistoryPage({
       ? Number(yearParam)
       : pastYears[0];
 
-  const [standings, events, scores] = await Promise.all([
+  const [standings, events, scores, namedChampionId] = await Promise.all([
     getStandings(league.id, year),
     getEvents(league.id, year),
     getSeasonScores(league.id, year),
+    getSeasonChampionId(league.id, year),
   ]);
 
   const visibleStandings = showInactive
     ? standings
     : standings.filter((s) => s.playerStatus === 'active');
 
-  const championIds = championIdsOf(events, scores);
+  const championIds = championIdsOf(events, scores, namedChampionId);
 
   const played = events.filter((e) => scores.some((s) => s.eventId === e.id));
   const cell = new Map<string, ScoreRow>();

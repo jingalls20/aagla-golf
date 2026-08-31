@@ -33,8 +33,23 @@ export interface HallSeasonInput {
   year: number;
   /** Where it was played, or what it was called. */
   where: string | null;
-  /** Everyone who tied for the win. More than one is a shared title. */
+  /**
+   * Everyone the scores show winning. More than one is a tie on the card --
+   * which is not the same as a shared title, since a tie is often settled
+   * by a playoff. `decidedBy` is what settles it.
+   */
   champions: HallPlayer[];
+  /**
+   * The winner an admin named outright, where they named one.
+   *
+   * A playoff decides who lifts the trophy without changing a single score,
+   * so a season can finish level on the card and still have one champion.
+   * When this points at one of the tied players, the others are recorded as
+   * having lost the playoff; when it names somebody the scores do not show
+   * winning at all, it simply stands. Null means read the winner off the
+   * scores, which is how most seasons work.
+   */
+  decidedBy?: string | null;
   /** The best score behind the winners, for the margin. */
   runnerUp: { name: string; netScore: number | null } | null;
   /** How many players posted a score that day. */
@@ -43,9 +58,13 @@ export interface HallSeasonInput {
   pointsWinners: { playerId: string; name: string }[];
 }
 
-export interface HallEntry extends HallSeasonInput {
-  /** True when the title was shared. */
+export interface HallEntry extends Omit<HallSeasonInput, 'champions'> {
+  /** Who actually holds the title, after any playoff. */
+  champions: HallPlayer[];
+  /** True when the title really was shared -- a tie nobody played off. */
   shared: boolean;
+  /** Players who tied on the card but lost the playoff. */
+  playoffLosers: HallPlayer[];
   /** Which Championship this was for the winner: 1 for their first. Shared
    *  titles carry one count per holder, in the same order as `champions`. */
   titleNumbers: number[];
@@ -112,6 +131,35 @@ function names(list: { name: string }[]): string {
 }
 
 /**
+ * Apply the named winner, where one was named.
+ *
+ * The scores stay exactly as they were recorded -- this decides only who is
+ * shown holding the trophy. Anyone who tied on the card and is not the
+ * named winner becomes a playoff loser, which is a thing worth saying out
+ * loud rather than quietly dropping them from the page.
+ */
+function resolve(
+  season: HallSeasonInput,
+): HallSeasonInput & { playoffLosers: HallPlayer[] } {
+  const named = season.decidedBy;
+  if (!named) return { ...season, playoffLosers: [] };
+
+  const winner = season.champions.find((c) => c.playerId === named);
+  if (!winner) {
+    // Named somebody the card does not show winning at all. Their word
+    // stands -- that is the point of being able to set it -- but there is
+    // nobody to describe as having lost a playoff to them.
+    return { ...season, playoffLosers: [] };
+  }
+
+  return {
+    ...season,
+    champions: [winner],
+    playoffLosers: season.champions.filter((c) => c.playerId !== named),
+  };
+}
+
+/**
  * Build the hall, oldest season first internally so a title can be counted
  * against the ones before it, then handed back newest first -- which is the
  * order the page reads in.
@@ -123,7 +171,8 @@ export function buildHall(seasons: HallSeasonInput[]): HallEntry[] {
   const wonBefore = new Map<string, number[]>();
   const entries: HallEntry[] = [];
 
-  for (const season of chronological) {
+  for (const raw of chronological) {
+    const season = resolve(raw);
     const titleNumbers = season.champions.map(
       (c) => (wonBefore.get(c.playerId)?.length ?? 0) + 1,
     );
@@ -153,7 +202,7 @@ export function buildHall(seasons: HallSeasonInput[]): HallEntry[] {
  * missing, so a thin season reads short rather than reading wrong.
  */
 function blurbFor(
-  season: HallSeasonInput,
+  season: HallSeasonInput & { playoffLosers: HallPlayer[] },
   titleNumbers: number[],
   previousWins: (number | null)[],
   isEarliest: boolean,
@@ -183,6 +232,13 @@ function blurbFor(
     }
   }
 
+  // How a level card was settled. Worth saying plainly: the scores show a
+  // tie, the page shows one champion, and without this the two look like a
+  // contradiction rather than a playoff.
+  if (season.playoffLosers.length > 0) {
+    opening.push(`after a playoff with ${names(season.playoffLosers)}`);
+  }
+
   // The margin, and only where the figures actually support one.
   //
   // Championships imported from the old spreadsheet carry the places that
@@ -194,7 +250,12 @@ function blurbFor(
   // printed beside somebody's photograph is no place to invent a scoreline.
   const winning = season.champions[0].netScore;
   const chasing = season.runnerUp?.netScore ?? null;
-  if (winning !== null && chasing !== null && season.runnerUp) {
+  if (
+    season.playoffLosers.length === 0 &&
+    winning !== null &&
+    chasing !== null &&
+    season.runnerUp
+  ) {
     const margin = round2(chasing - winning);
     if (margin > 0) {
       opening.push(`${count(margin, 'stroke')} clear of ${season.runnerUp.name}`);

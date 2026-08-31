@@ -135,3 +135,61 @@ describe('buildHall', () => {
     expect(hall[0].blurb).not.toContain('field');
   });
 });
+
+describe('a named winner', () => {
+  it('narrows a tie to one champion and says there was a playoff', () => {
+    const hall = buildHall([
+      season({
+        champions: [player('Ann Green'), player('Cal Grey')],
+        decidedBy: 'ann-green',
+      }),
+    ]);
+    expect(hall[0].champions.map((c) => c.name)).toEqual(['Ann Green']);
+    expect(hall[0].playoffLosers.map((c) => c.name)).toEqual(['Cal Grey']);
+    expect(hall[0].shared).toBe(false);
+    expect(hall[0].blurb).toContain('after a playoff with Cal Grey');
+  });
+
+  it('claims no margin when the card was level and a playoff settled it', () => {
+    const hall = buildHall([
+      season({
+        champions: [player('Ann Green'), player('Cal Grey')],
+        decidedBy: 'ann-green',
+        runnerUp: { name: 'Bob Blue', netScore: 4 },
+      }),
+    ]);
+    expect(hall[0].blurb).not.toContain('clear of');
+  });
+
+  it('counts the title only for the player who won the playoff', () => {
+    const hall = buildHall([
+      season({
+        year: 2020,
+        champions: [player('Ann Green'), player('Cal Grey')],
+        decidedBy: 'ann-green',
+      }),
+      season({ year: 2022, champions: [player('Cal Grey')] }),
+    ]);
+    // Cal lost the 2020 playoff, so 2022 is a first title rather than a second.
+    expect(hall[0].titleNumbers).toEqual([1]);
+    expect(hall[0].blurb).toContain('first Championship');
+  });
+
+  it('leaves a season alone when nobody was named', () => {
+    const hall = buildHall([
+      season({ champions: [player('Ann Green'), player('Cal Grey')] }),
+    ]);
+    expect(hall[0].shared).toBe(true);
+    expect(hall[0].playoffLosers).toEqual([]);
+    expect(hall[0].blurb).toContain('shared the title');
+  });
+
+  it('stands even when the named winner is not among the tied players', () => {
+    // An admin overriding a result the scores got wrong outright.
+    const hall = buildHall([
+      season({ champions: [player('Ann Green')], decidedBy: 'somebody-else' }),
+    ]);
+    expect(hall[0].champions.map((c) => c.name)).toEqual(['Ann Green']);
+    expect(hall[0].playoffLosers).toEqual([]);
+  });
+});

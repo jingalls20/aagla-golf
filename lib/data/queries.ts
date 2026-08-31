@@ -77,7 +77,17 @@ function num(value: unknown): number | null {
  * app answers "who actually won it that year" rather than "who topped the
  * table." Dense ranking means a tie for 1st returns more than one ID.
  */
-export function championIdsOf(events: LeagueEvent[], scores: ScoreRow[]): Set<string> {
+export function championIdsOf(
+  events: LeagueEvent[],
+  scores: ScoreRow[],
+  decidedBy?: string | null,
+): Set<string> {
+  // A named winner settles it. A playoff decides who lifts the trophy
+  // without moving a single score, so a season can finish level on the card
+  // and still have exactly one champion -- and the trophy beside a name
+  // should agree with the Hall of Champions rather than contradict it.
+  if (decidedBy) return new Set([decidedBy]);
+
   const championshipEventIds = new Set(
     events.filter((e) => e.eventType === 'championship').map((e) => e.id),
   );
@@ -85,6 +95,23 @@ export function championIdsOf(events: LeagueEvent[], scores: ScoreRow[]): Set<st
     scores
       .filter((s) => championshipEventIds.has(s.eventId) && s.place === 1)
       .map((s) => s.playerId),
+  );
+}
+
+/** The Championship winner an admin named for a season, if any. */
+export async function getSeasonChampionId(
+  leagueId: string,
+  year: number,
+): Promise<string | null> {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from('seasons')
+    .select('champion_player_id')
+    .eq('league_id', leagueId)
+    .eq('year', year)
+    .maybeSingle();
+  return (
+    (data as { champion_player_id?: string | null } | null)?.champion_player_id ?? null
   );
 }
 

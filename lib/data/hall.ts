@@ -32,7 +32,7 @@ export async function getHallSeasons(leagueId: string): Promise<HallSeasonInput[
     await Promise.all([
       supabase
         .from('seasons')
-        .select('id, year, drop_worst_count')
+        .select('id, year, drop_worst_count, champion_player_id')
         .eq('league_id', leagueId),
       supabase
         .from('events')
@@ -53,6 +53,7 @@ export async function getHallSeasons(leagueId: string): Promise<HallSeasonInput[
     id: string;
     year: number;
     drop_worst_count: number | null;
+    champion_player_id: string | null;
   }[];
   const events = (eventRows ?? []) as unknown as {
     id: string;
@@ -142,6 +143,7 @@ export async function getHallSeasons(leagueId: string): Promise<HallSeasonInput[
 
     out.push({
       year: season.year,
+      decidedBy: season.champion_player_id,
       where: championship.course?.trim() || championship.name?.trim() || null,
       champions,
       runnerUp: chasing

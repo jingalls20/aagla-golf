@@ -15,13 +15,18 @@ export interface SeasonAdminRow {
   handicapBestOf: number;
   handicapWindowEvents: number;
   status: 'open' | 'closed';
+  /** Championship winner named by an admin, where the scores cannot say. */
+  championPlayerId: string | null;
 }
 
 export async function getSeasonsAdmin(leagueId: string): Promise<SeasonAdminRow[]> {
   const supabase = await createClient();
   const { data } = await supabase
     .from('seasons')
-    .select('id, year, is_current, handicap_best_of, handicap_window_events, status')
+    .select(
+      'id, year, is_current, handicap_best_of, handicap_window_events, status, ' +
+        'champion_player_id',
+    )
     .eq('league_id', leagueId)
     .order('year', { ascending: false });
   return (
@@ -32,6 +37,7 @@ export async function getSeasonsAdmin(leagueId: string): Promise<SeasonAdminRow[
       handicap_best_of: number;
       handicap_window_events: number;
       status: 'open' | 'closed';
+      champion_player_id: string | null;
     }[]
   ).map((r) => ({
     id: r.id,
@@ -40,6 +46,7 @@ export async function getSeasonsAdmin(leagueId: string): Promise<SeasonAdminRow[
     handicapBestOf: r.handicap_best_of,
     handicapWindowEvents: r.handicap_window_events,
     status: r.status,
+    championPlayerId: r.champion_player_id,
   }));
 }
 
