@@ -8,7 +8,9 @@ describe('isLeagueSlug', () => {
   });
 
   it('rejects the routes the app reserves for itself', () => {
-    for (const s of ['login', 'auth', 'api']) expect(isLeagueSlug(s)).toBe(false);
+    for (const s of ['login', 'auth', 'api', 'rankings']) {
+      expect(isLeagueSlug(s)).toBe(false);
+    }
   });
 
   it('rejects root-level files, which is the bug this exists for', () => {

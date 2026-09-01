@@ -41,12 +41,29 @@ export default async function LeagueLayout({
               chapter" redirect in middleware.ts -- without it, this link
               would just bounce straight back here.
             */}
-            <Link
-              href="/?chapters=1"
-              className="text-xs text-slate-400 hover:text-slate-600"
-            >
-              ← All chapters
-            </Link>
+            {/*
+              Two links at the same level, above the chapter's own name: one
+              back to the chapter list, one out to the ranking. The ranking
+              covers every chapter, so it deliberately does not sit in the tab
+              strip below -- those tabs are all this chapter's.
+            */}
+            <div className="flex items-center gap-3">
+              <Link
+                href="/?chapters=1"
+                className="text-xs text-slate-400 hover:text-slate-600"
+              >
+                ← All chapters
+              </Link>
+              <Link
+                href="/rankings"
+                className="text-xs text-slate-400 hover:text-fairway-600"
+              >
+                World Ranking
+                <span className="ml-1 text-[9px] uppercase tracking-wider text-amber-500">
+                  beta
+                </span>
+              </Link>
+            </div>
             <h1 className="text-2xl font-semibold">{league.name}</h1>
           </div>
           <div className="flex items-center gap-3">

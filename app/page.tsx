@@ -43,6 +43,23 @@ export default async function HomePage() {
           ))}
         </ul>
       )}
+
+      {/*
+        Below the chapters, because it is not one of them: the ranking pools
+        every chapter into a single table.
+      */}
+      <Link
+        href="/rankings"
+        className="mt-6 flex items-baseline justify-between rounded-xl border border-dashed border-slate-200 p-4 hover:border-fairway-500 dark:border-slate-800"
+      >
+        <span className="font-medium">
+          World Ranking
+          <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-700 dark:bg-amber-500/15 dark:text-amber-400">
+            experimental
+          </span>
+        </span>
+        <span className="text-sm text-slate-400">All chapters</span>
+      </Link>
     </main>
   );
 }

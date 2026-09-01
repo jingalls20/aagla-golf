@@ -6,8 +6,8 @@
  * depends on is a pure string question and deserves to be pinned down.
  *
  * Two kinds of thing are not chapters. Reserved routes we own -- login,
- * auth, api -- and anything with a dot in it, which is a file being served
- * from the root rather than a page.
+ * auth, api, rankings -- and anything with a dot in it, which is a file
+ * being served from the root rather than a page.
  *
  * The dot rule was written in response to a real bug. Adding
  * `/manifest.webmanifest` meant the browser fetched it on page load, the
@@ -16,7 +16,7 @@
  * known routes could never have prevented that, because the whole problem
  * was a route nobody had thought of yet. Matching the shape does.
  */
-const RESERVED_FIRST_SEGMENTS = new Set(['login', 'auth', 'api']);
+const RESERVED_FIRST_SEGMENTS = new Set(['login', 'auth', 'api', 'rankings']);
 
 export function isLeagueSlug(segment: string): boolean {
   if (segment.length === 0) return false;
