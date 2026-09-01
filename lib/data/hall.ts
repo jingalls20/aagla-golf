@@ -141,6 +141,23 @@ export async function getHallSeasons(leagueId: string): Promise<HallSeasonInput[
       .filter((s) => (num(s.place) ?? 0) > 1 && num(s.net_score) !== null)
       .sort((a, b) => (num(a.net_score) as number) - (num(b.net_score) as number))[0];
 
+    // The field is the season's, not the day's.
+    //
+    // A Championship is often contested by a subset -- Iowa 2026 had six
+    // players on the tee out of a season that ran to ten. Counting only
+    // those six understates what the title was won against: the champion
+    // saw off a year's worth of golfers to get there, and that is the
+    // number worth printing.
+    const seasonField = new Set(
+      scores
+        .filter(
+          (sc) =>
+            seasonEvents.some((e) => e.id === (sc.event_id as string)) &&
+            num(sc.true_score) !== null,
+        )
+        .map((sc) => sc.player_id as string),
+    );
+
     out.push({
       year: season.year,
       decidedBy: season.champion_player_id,
@@ -152,7 +169,7 @@ export async function getHallSeasons(leagueId: string): Promise<HallSeasonInput[
             netScore: num(chasing.net_score),
           }
         : null,
-      fieldSize: played.length,
+      fieldSize: seasonField.size,
       pointsWinners,
     });
   }

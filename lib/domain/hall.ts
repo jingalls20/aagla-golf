@@ -52,7 +52,13 @@ export interface HallSeasonInput {
   decidedBy?: string | null;
   /** The best score behind the winners, for the margin. */
   runnerUp: { name: string; netScore: number | null } | null;
-  /** How many players posted a score that day. */
+  /**
+   * How many different players posted a score anywhere that season.
+   *
+   * The season's field rather than the Championship's: a title is often
+   * contested by a subset of the year's golfers, and counting only the
+   * players on the tee that afternoon understates what winning it meant.
+   */
   fieldSize: number;
   /** Who topped the season's points table, by id. */
   pointsWinners: { playerId: string; name: string }[];
@@ -266,7 +272,9 @@ function blurbFor(
   // What surrounded the day: the size of the field, and who the season
   // itself belonged to -- which in this league is usually somebody else.
   const context: string[] = [];
-  if (season.fieldSize > 0) context.push(`A field of ${word(season.fieldSize)}`);
+  if (season.fieldSize > 0) {
+    context.push(`A season field of ${word(season.fieldSize)}`);
+  }
 
   const doubled = season.champions.filter((c) =>
     season.pointsWinners.some((w) => w.playerId === c.playerId),
