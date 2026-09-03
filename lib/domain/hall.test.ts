@@ -108,6 +108,28 @@ describe('buildHall', () => {
     expect(hall[0].blurb).toContain('the double');
   });
 
+  it('does not say a lone champion twice when they doubled', () => {
+    const hall = buildHall([
+      season({ pointsWinners: [{ playerId: 'ann-green', name: 'Ann Green' }] }),
+    ]);
+    // Named once, in the opening sentence, and not again in the double.
+    expect(hall[0].blurb.match(/Ann Green/g)).toHaveLength(1);
+    expect(hall[0].blurb).toContain('the season points as well');
+  });
+
+  it('still names both when a shared title doubled', () => {
+    const hall = buildHall([
+      season({
+        champions: [player('Ann Green'), player('Bob Blue')],
+        pointsWinners: [
+          { playerId: 'ann-green', name: 'Ann Green' },
+          { playerId: 'bob-blue', name: 'Bob Blue' },
+        ],
+      }),
+    ]);
+    expect(hall[0].blurb).toContain('Ann Green and Bob Blue had already taken');
+  });
+
   it('names the points winner when it was somebody else', () => {
     const hall = buildHall([
       season({

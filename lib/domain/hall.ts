@@ -282,8 +282,16 @@ function blurbFor(
   const rank = season.champions[0].seasonRank;
 
   if (doubled.length > 0) {
+    // A lone champion is already named in the opening sentence, so naming
+    // them again here reads as a stutter -- "Josh Ingalls's first
+    // Championship ... and the double: Josh Ingalls had already taken the
+    // season points". With one winner the clause can just say what they won.
+    // More than one and the names have to come back, since the reader needs
+    // to know which of them doubled.
     context.push(
-      `and the double: ${names(doubled)} had already taken the season points`,
+      doubled.length === 1 && season.champions.length === 1
+        ? 'and the double: the season points as well'
+        : `and the double: ${names(doubled)} had already taken the season points`,
     );
   } else if (season.pointsWinners.length > 0) {
     const also =
