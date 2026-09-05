@@ -22,6 +22,7 @@ import {
 import { TableHint } from '@/components/table-hint';
 import { eventHeaderLabel } from '@/lib/event-label';
 import { seasonRecapView } from '@/lib/domain/offseason';
+import { getRecapPast } from '@/lib/data/recap-history';
 import { SeasonRecap } from '@/components/season-recap';
 import { championshipHandicap } from '@/lib/domain/handicap';
 import { resolveShowInactive } from '@/lib/prefs';
@@ -56,11 +57,31 @@ export default async function StandingsPage({
     getSeasonChampionId(league.id, year),
   ]);
 
+  // Only the recap needs the chapter's whole archive, so it is only paid for
+  // between seasons rather than on every visit during one.
+  const past = offseason ? await getRecapPast(league.id, year) : null;
+
   const visibleStandings = showInactive
     ? standings
     : standings.filter((s) => s.playerStatus === 'active');
 
   const championIds = championIdsOf(events, scores, namedChampionId);
+
+  // Who tied the Championship on the card but does not hold the trophy. A
+  // playoff moves no scores, so without this the recap sees a tie and has no
+  // idea it was ever settled.
+  const championshipId = events.find((e) => e.eventType === 'championship')?.id;
+  const playoffLoserIds = championshipId
+    ? scores
+        .filter(
+          (s) =>
+            s.eventId === championshipId &&
+            s.place === 1 &&
+            s.trueScore !== null &&
+            !championIds.has(s.playerId),
+        )
+        .map((s) => s.playerId)
+    : [];
 
   // Player × event grid. Every event in the season gets a column, played or
   // not -- an admin scanning the season wants to see what's still ahead, not
@@ -286,14 +307,21 @@ export default async function StandingsPage({
             playerId: s.playerId,
             playerName: s.playerName,
             eventId: s.eventId,
-            eventLabel: eventLabels.get(s.eventId) ?? '',
-            eventType: event?.eventType ?? 'event',
+            eventLabel: eventLabels.get(s.eventId) ?? null,
+            eventType: event?.eventType ?? ('event' as const),
+            sequence: event?.sequence ?? 0,
             trueScore: s.trueScore,
             netScore: s.netScore,
             place: s.place,
+            eventPoints: s.eventPoints,
           };
         }),
         championIds: [...championIds],
+        // Anyone the scores show winning who did not end up with the
+        // trophy lost a playoff -- that is the only way the two differ.
+        playoffLoserIds: playoffLoserIds,
+        history: past?.history,
+        previousChampionId: past?.previousChampionId,
         eventsPlayed: scoredEventIds.size,
         eventsScheduled: events.length,
       })
@@ -328,8 +356,7 @@ export default async function StandingsPage({
           year={year}
           slug={slug}
           champions={recapChampions}
-          summary={recap.summary}
-          highlights={recap.highlights}
+          paragraphs={recap.paragraphs}
         />
       ) : null}
 

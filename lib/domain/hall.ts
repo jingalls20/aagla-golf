@@ -1,4 +1,5 @@
 import { round2 } from './standings';
+import { Subject } from './prose';
 
 /**
  * The Hall of Champions: one entry per season, built from that season's own
@@ -202,10 +203,12 @@ export function buildHall(seasons: HallSeasonInput[]): HallEntry[] {
 }
 
 /**
- * A season in a couple of sentences.
+ * A season in a couple of sentences, in the house voice.
  *
  * Written as a list of independent claims, each skipped when its data is
- * missing, so a thin season reads short rather than reading wrong.
+ * missing, so a thin season reads short rather than reading wrong. See
+ * `prose.ts` for the rules it obeys -- most visibly the surname register and
+ * the refusal to state a margin the scores do not support.
  */
 function blurbFor(
   season: HallSeasonInput & { playoffLosers: HallPlayer[] },
@@ -216,25 +219,29 @@ function blurbFor(
   if (season.champions.length === 0) return '';
 
   const sentences: string[] = [];
+  const shared = season.champions.length > 1;
+  const subject = shared ? null : new Subject(season.champions[0].name);
 
-  // Who won, and what number it was for them.
+  // Who won, and what number it was for them. The opening carries the
+  // playoff and the margin on commas rather than starting new sentences,
+  // which is what keeps the champion from being named three times running.
   const opening: string[] = [];
-  if (season.champions.length > 1) {
+  if (shared) {
     opening.push(`${names(season.champions)} shared the title`);
   } else {
     const n = titleNumbers[0];
     const previous = previousWins[0];
-    const who = season.champions[0].name;
+    const who = (subject as Subject).name();
     if (n === 1) {
-      opening.push(`${who}'s first Championship`);
+      opening.push(`${who} took a first Championship`);
     } else if (previous === season.year - 1) {
       opening.push(`${who} went back to back for a ${ordinalWord(n)} title`);
     } else if (previous !== null) {
       opening.push(
-        `${who}'s ${ordinalWord(n)} Championship, and the first since ${previous}`,
+        `${who} took a ${ordinalWord(n)} Championship, the first since ${previous}`,
       );
     } else {
-      opening.push(`${who}'s ${ordinalWord(n)} Championship`);
+      opening.push(`${who} took a ${ordinalWord(n)} Championship`);
     }
   }
 
@@ -264,6 +271,8 @@ function blurbFor(
   ) {
     const margin = round2(chasing - winning);
     if (margin > 0) {
+      // Full name: the runner-up has not been mentioned before this, and
+      // the surname register only applies to somebody already introduced.
       opening.push(`${count(margin, 'stroke')} clear of ${season.runnerUp.name}`);
     }
   }
@@ -283,19 +292,17 @@ function blurbFor(
 
   if (doubled.length > 0) {
     // A lone champion is already named in the opening sentence, so naming
-    // them again here reads as a stutter -- "Josh Ingalls's first
-    // Championship ... and the double: Josh Ingalls had already taken the
-    // season points". With one winner the clause can just say what they won.
-    // More than one and the names have to come back, since the reader needs
-    // to know which of them doubled.
+    // them again here reads as a stutter. With one winner the clause can
+    // just say what they won; more than one and the names have to come back,
+    // since the reader needs to know which of them doubled.
     context.push(
-      doubled.length === 1 && season.champions.length === 1
-        ? 'and the double: the season points as well'
+      doubled.length === 1 && !shared
+        ? 'and the season points as well, for the double'
         : `and the double: ${names(doubled)} had already taken the season points`,
     );
   } else if (season.pointsWinners.length > 0) {
     const also =
-      season.champions.length === 1 && rank !== null && rank > 1
+      !shared && rank !== null && rank > 1
         ? `, with the champion ${ordinalWord(rank)} on the year`
         : '';
     context.push(`${names(season.pointsWinners)} took the season points${also}`);

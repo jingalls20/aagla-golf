@@ -1,18 +1,20 @@
 import Link from 'next/link';
 import { Avatar } from '@/components/avatar';
-import type { Highlight } from '@/lib/domain/offseason';
 
 /**
  * The head of the first tab once a season is over.
  *
  * Between seasons the standings stop being a question -- nobody is chasing
  * anybody, and the table below is a result rather than a race. So the page
- * leads with what happened instead: who lifted the trophy, the year in a
- * paragraph, and the handful of superlatives worth remembering it by.
+ * leads with what happened instead: who lifted the trophy, and the year told
+ * as a report rather than listed as statistics.
  *
- * Every word of the prose and every figure in the cards comes from
- * `seasonRecapView`, which can only restate rounds it was handed. Nothing
- * here is written by a model or inferred.
+ * The superlatives used to sit here as a row of cards. They were folded into
+ * the prose once the prose grew long enough to carry them -- naming the low
+ * gross round in a sentence and again in a card underneath said it twice.
+ *
+ * Every word comes from `seasonRecapView`, which can only restate rounds it
+ * was handed. Nothing here is written by a model or inferred.
  */
 
 export interface RecapChampion {
@@ -25,14 +27,13 @@ export function SeasonRecap({
   year,
   slug,
   champions,
-  summary,
-  highlights,
+  paragraphs,
 }: {
   year: number;
   slug: string;
   champions: RecapChampion[];
-  summary: string;
-  highlights: Highlight[];
+  /** The recap, one string per paragraph. */
+  paragraphs: string[];
 }) {
   return (
     <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
@@ -62,28 +63,16 @@ export function SeasonRecap({
 
         <div className="min-w-0 flex-1">
           <h2 className="text-lg font-semibold">The {year} season</h2>
-          <p className="mt-1 text-sm leading-relaxed text-slate-600 dark:text-slate-300">
-            {summary}
-          </p>
-
-          {highlights.length > 0 ? (
-            <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
-              {highlights.map((h) => (
-                <div
-                  key={h.label}
-                  className="rounded-lg border border-slate-200 px-3 py-2 dark:border-slate-800"
-                >
-                  <div className="text-[10px] uppercase tracking-wider text-slate-400">
-                    {h.label}
-                  </div>
-                  <div className="text-sm font-semibold leading-tight">{h.who}</div>
-                  <div className="text-[10px] leading-tight text-slate-400">
-                    {h.detail}
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : null}
+          <div className="mt-2 space-y-3">
+            {paragraphs.map((text, i) => (
+              <p
+                key={i}
+                className="text-sm leading-relaxed text-slate-600 dark:text-slate-300"
+              >
+                {text}
+              </p>
+            ))}
+          </div>
         </div>
       </div>
     </section>

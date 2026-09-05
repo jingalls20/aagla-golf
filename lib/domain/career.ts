@@ -1,4 +1,5 @@
 import type { EventType } from './types';
+import { Subject, count, listWords, paragraph, times, toParWords } from './prose';
 
 /**
  * Career shaping: turning a flat list of rounds into the back of a baseball
@@ -158,25 +159,6 @@ export function careerTotals(rounds: CareerRound[]): CareerTotals {
   };
 }
 
-/** Scores read relative to par everywhere in this app; say it in words. */
-export function toParWords(value: number): string {
-  const v = Math.round(value * 10) / 10;
-  if (v === 0) return 'level par';
-  if (v > 0) return `${v} over par`;
-  return `${Math.abs(v)} under par`;
-}
-
-function plural(n: number, one: string, many = `${one}s`): string {
-  return `${n} ${n === 1 ? one : many}`;
-}
-
-function listWords(items: string[]): string {
-  if (items.length === 0) return '';
-  if (items.length === 1) return items[0];
-  if (items.length === 2) return `${items[0]} and ${items[1]}`;
-  return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
-}
-
 export interface SummaryChapter {
   /** Display name, e.g. "Iowa". */
   label: string;
@@ -212,7 +194,7 @@ export function careerSummary(input: CareerSummaryInput): string {
   const { name, chapters, currentYear } = input;
   const allRounds = chapters.flatMap((c) => c.rounds);
   const totals = careerTotals(allRounds);
-  const first = name.trim().split(/\s+/)[0] || name;
+  const subject = new Subject(name);
   const multi = chapters.length > 1;
 
   if (totals.rounds === 0) {
@@ -221,7 +203,11 @@ export function careerSummary(input: CareerSummaryInput): string {
 
   const sentences: string[] = [];
 
-  // 1. Who and how long.
+  // 1. Who, how long, and what they have won -- in one sentence rather than
+  //    two. The old version opened with an inventory of rounds and seasons
+  //    and only got to the silverware afterwards, which is the wrong way
+  //    round: nobody reads a card to find out how many Sundays somebody
+  //    turned up for.
   const span =
     totals.firstYear && totals.lastYear && totals.firstYear !== totals.lastYear
       ? ` between ${totals.firstYear} and ${totals.lastYear}`
@@ -229,44 +215,51 @@ export function careerSummary(input: CareerSummaryInput): string {
         ? ` in ${totals.firstYear}`
         : '';
   const where = multi ? ` across ${listWords(chapters.map((c) => c.label))}` : '';
-  sentences.push(
-    `${name} has played ${plural(totals.rounds, 'round')} over ` +
-      `${plural(totals.seasons, 'season')}${span}${where}.`,
-  );
 
-  // 2. Silverware, only when there is some.
-  // The three kinds of win matter differently to this league, so all three get
-  // named. They're stated as a breakdown of one total rather than a list of
-  // separate figures -- "2 Championships and 14 wins" reads as sixteen, when
-  // the Championships are two OF the fourteen.
+  // The three kinds of win matter differently to this league, so all three
+  // get named -- as a breakdown of one total rather than a list of separate
+  // figures, since "two Championships and 14 wins" reads as sixteen when the
+  // Championships are two OF the fourteen.
   const kinds: string[] = [];
-  if (totals.eventWins > 0) kinds.push(plural(totals.eventWins, 'event'));
-  if (totals.majorWins > 0) kinds.push(plural(totals.majorWins, 'major'));
+  if (totals.eventWins > 0) kinds.push(count(totals.eventWins, 'event'));
+  if (totals.majorWins > 0) kinds.push(count(totals.majorWins, 'major'));
   if (totals.championships > 0) {
-    const champYears = chapters
-      .flatMap((c) => c.lines)
-      .filter((l) => l.championship === 'won')
-      .map((l) => l.year)
-      .sort((a, b) => a - b);
+    const champYears = [
+      ...new Set(
+        chapters
+          .flatMap((c) => c.lines)
+          .filter((l) => l.championship === 'won')
+          .map((l) => l.year),
+      ),
+    ].sort((a, b) => a - b);
     kinds.push(
-      `${plural(totals.championships, 'Championship')}` +
-        (champYears.length ? ` (${[...new Set(champYears)].join(', ')})` : ''),
-    );
-  }
-  if (totals.wins > 0) {
-    // A single win needs no breakdown; "1 win in all: 1 major" is silly.
-    sentences.push(
-      kinds.length > 1
-        ? `${plural(totals.wins, 'win')} in all: ${listWords(kinds)}.`
-        : `${listWords(kinds)} won.`,
-    );
-  } else if (totals.podiums > 0) {
-    sentences.push(
-      `No wins yet, but ${plural(totals.podiums, 'top-three finish', 'top-three finishes')}.`,
+      `${count(totals.championships, 'Championship')}` +
+        (champYears.length ? ` (${champYears.join(', ')})` : ''),
     );
   }
 
-  // 3. Peak season, resolved inside a chapter and judged on scoring rather
+  if (totals.wins > 0) {
+    sentences.push(
+      `${subject.name()} has won ${times(totals.wins)}${where}` +
+        (kinds.length > 1 ? `: ${listWords(kinds)}.` : ` — ${listWords(kinds)}.`),
+    );
+    sentences.push(
+      `That is from ${count(totals.rounds, 'round')} over ` +
+        `${count(totals.seasons, 'season')}${span}.`,
+    );
+  } else {
+    sentences.push(
+      `${subject.name()} has played ${count(totals.rounds, 'round')} over ` +
+        `${count(totals.seasons, 'season')}${span}${where}.`,
+    );
+    if (totals.podiums > 0) {
+      sentences.push(
+        `No wins yet, but ${count(totals.podiums, 'top-three finish', 'top-three finishes')}.`,
+      );
+    }
+  }
+
+  // 2. Peak season, resolved inside a chapter and judged on scoring rather
   //    than points -- points totals depend on how many events a season
   //    happened to run, so comparing them across years rewards long seasons.
   const rated = chapters.flatMap((c) =>
@@ -280,13 +273,13 @@ export function careerSummary(input: CareerSummaryInput): string {
     );
     const inChapter = multi ? ` in ${best.chapter}` : '';
     sentences.push(
-      `${first}'s sharpest season was ${best.line.year}${inChapter}, averaging ` +
+      `The sharpest season was ${best.line.year}${inChapter}, averaging ` +
         `${toParWords(best.line.avgNet as number)} across ` +
-        `${plural(best.line.rounds, 'round')}.`,
+        `${count(best.line.rounds, 'round')}.`,
     );
   }
 
-  // 4. Handicap direction, read from the chapter they've played most. A
+  // 3. Handicap direction, read from the chapter they've played most. A
   //    falling handicap is the league's own measure of a player getting
   //    better, so it's worth more than a scoring trend.
   const busiest = [...chapters].sort(
@@ -316,12 +309,12 @@ export function careerSummary(input: CareerSummaryInput): string {
     }
   }
 
-  // 5. Single best round, as the highlight note.
+  // 4. Single best round, as the highlight note.
   if (totals.bestNet !== null && totals.rounds >= 3) {
     sentences.push(`Career best round: ${toParWords(totals.bestNet)} net.`);
   }
 
-  // 6. Whether they're still out there.
+  // 5. Whether they're still out there.
   if (
     currentYear !== null &&
     totals.lastYear !== null &&
@@ -330,5 +323,5 @@ export function careerSummary(input: CareerSummaryInput): string {
     sentences.push(`Last seen on a card in ${totals.lastYear}.`);
   }
 
-  return sentences.join(' ');
+  return paragraph(sentences);
 }

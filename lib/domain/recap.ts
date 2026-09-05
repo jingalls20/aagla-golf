@@ -1,4 +1,5 @@
 import { isPlayed } from './career';
+import { count, marginOver } from './prose';
 import type { EventType } from './types';
 
 /**
@@ -132,7 +133,7 @@ export function eventRecap(input: EventRecapInput): string | null {
   const lines: string[] = [];
   lines.push(`**${input.leagueName} — ${label}**`);
   lines.push(
-    `${input.year} ${kind} · ${plural(played.length, 'player')} posted a score.`,
+    `${input.year} ${kind} · ${count(played.length, 'player')} posted a score.`,
   );
   lines.push('');
 
@@ -216,20 +217,25 @@ export function seasonRecap(input: SeasonRecapInput): string | null {
   const lines: string[] = [];
 
   lines.push(`**${input.leagueName} — ${input.year} season**`);
-  lines.push(
-    done
-      ? `That's a wrap on ${input.year}: ${plural(input.eventsPlayed, 'event')} played.`
-      : `${input.eventsPlayed} of ${input.eventsScheduled} events played.`,
-  );
   lines.push('');
 
   const top = input.standings.slice(0, STANDINGS_LINES);
   const leader = top[0];
+  const chaser = input.standings.find((s) => s.totalPoints > leader.totalPoints);
+  const margin = marginOver(leader.totalPoints, chaser?.totalPoints ?? null);
+  const remaining = input.eventsScheduled - input.eventsPlayed;
+
+  // Lead with the person and what they have done, the same way the app's own
+  // recap does -- not with an inventory of how many events have been played.
   // Points are golf-scored here: lower is better, 1st place earns 0.
   lines.push(
     done
-      ? `🏆 **${leader.playerName}** takes the season on ${plural(leader.totalPoints, 'point')}.`
-      : `**${leader.playerName}** leads on ${plural(leader.totalPoints, 'point')}.`,
+      ? `🏆 **${leader.playerName}** takes the ${input.year} season on ` +
+          `${count(leader.totalPoints, 'point')}` +
+          (margin ? `, ${margin} clear of ${chaser?.playerName}.` : '.')
+      : `**${leader.playerName}** leads on ${count(leader.totalPoints, 'point')}` +
+          (margin ? `, ${margin} clear of ${chaser?.playerName}` : '') +
+          (remaining > 0 ? `, with ${count(remaining, 'event')} still to play.` : '.'),
   );
 
   lines.push('');
@@ -268,14 +274,11 @@ export function seasonRecap(input: SeasonRecapInput): string | null {
     }
   }
 
-  const remaining = input.eventsScheduled - input.eventsPlayed;
-  if (!done && remaining > 0) {
+  // The count of what is left already rode the opening sentence; all this
+  // adds is where the next one is.
+  if (!done && remaining > 0 && input.nextEventLabel) {
     lines.push('');
-    lines.push(
-      input.nextEventLabel
-        ? `${plural(remaining, 'event')} left, starting with ${input.nextEventLabel}.`
-        : `${plural(remaining, 'event')} left to play.`,
-    );
+    lines.push(`Next up: ${input.nextEventLabel}.`);
   }
 
   const played = input.rounds.filter((r) => isPlayed({ trueScore: r.trueScore }));

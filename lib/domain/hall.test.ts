@@ -40,12 +40,14 @@ describe('buildHall', () => {
   });
 
   it('calls a first title a first', () => {
-    expect(buildHall([season()])[0].blurb).toContain("Ann Green's first Championship");
+    expect(buildHall([season()])[0].blurb).toContain(
+      'Ann Green took a first Championship',
+    );
   });
 
   it('says how long it had been since the last one', () => {
     const hall = buildHall([season({ year: 2017 }), season({ year: 2021 })]);
-    expect(hall[0].blurb).toContain('second Championship, and the first since 2017');
+    expect(hall[0].blurb).toContain('second Championship, the first since 2017');
   });
 
   it('calls consecutive years back to back', () => {

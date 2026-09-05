@@ -75,7 +75,7 @@ describe('computeHandicap', () => {
   it('flags a thin window so the number can be shown with a caveat', () => {
     const result = computeHandicap(rounds(10, 12, 14), 3, 7, 2025);
     expect(result.consideredCount).toBe(3);
-    expect(result.note).toContain('Only 3 of 2025');
+    expect(result.note).toContain('Only three rounds from 2025 to draw on');
   });
 
   it('reports no caveat when the window was full', () => {
@@ -119,7 +119,7 @@ describe('describeHandicap', () => {
   it('shows the working: which rounds, and what they averaged to', () => {
     const result = computeHandicap(rounds(12, 14, 16, 18), 3, 7, 2025);
     const text = describeHandicap(result, 2025);
-    expect(text).toContain('Best 3 of last 4');
+    expect(text).toContain('The best three of the last four rounds played in 2025');
     expect(text).toContain('12, 14, 16');
     expect(text).toContain('14');
   });
@@ -131,7 +131,9 @@ describe('describeHandicap', () => {
 
   it('appends the thin-window caveat when there is one', () => {
     const result = computeHandicap(rounds(10, 12, 14), 3, 7, 2025);
-    expect(describeHandicap(result, 2025)).toContain('Only 3 of 2025');
+    expect(describeHandicap(result, 2025)).toContain(
+      'Only three rounds from 2025 to draw on',
+    );
   });
 });
 

@@ -173,14 +173,15 @@ describe('seasonRecap', () => {
 
   it('says "leads" while the season is still running', () => {
     const text = season() as string;
-    expect(text).toContain('**Leader** leads on 12 points');
-    expect(text).toContain('3 of 7 events played');
-    expect(text).not.toContain('takes the season');
+    // Leads with the person, not with a count of events played.
+    expect(text).toContain('**Leader** leads on twelve points');
+    expect(text).toContain('four events still to play');
+    expect(text).not.toContain('takes the');
   });
 
   it('only crowns a winner once every event is in', () => {
     const text = season({ eventsPlayed: 7, eventsScheduled: 7 }) as string;
-    expect(text).toContain('takes the season on 12 points');
+    expect(text).toContain('takes the 2026 season on twelve points');
   });
 
   it('reports the Championship separately from the points race', () => {
@@ -281,13 +282,16 @@ describe('season status extras', () => {
     expect(text).toContain('Otter Creek (Championship)');
   });
 
-  it('says how many events are left and what is next', () => {
+  it('counts what is left in the opening line and names what is next', () => {
     const text = seasonRecap({ ...base, nextEventLabel: 'Terrace Hills' }) as string;
-    expect(text).toContain('4 events left, starting with Terrace Hills');
+    expect(text).toContain('four events still to play');
+    expect(text).toContain('Next up: Terrace Hills.');
   });
 
   it('still counts the remainder with no next event named', () => {
-    expect(seasonRecap(base) as string).toContain('4 events left to play');
+    const text = seasonRecap(base) as string;
+    expect(text).toContain('four events still to play');
+    expect(text).not.toContain('Next up');
   });
 
   it('drops the countdown once the season is done', () => {
@@ -296,7 +300,8 @@ describe('season status extras', () => {
       eventsPlayed: 7,
       nextEventLabel: 'Nothing',
     }) as string;
-    expect(text).not.toContain('left');
+    expect(text).not.toContain('still to play');
+    expect(text).not.toContain('Next up');
   });
 
   it('says nothing about winners before anyone has won', () => {

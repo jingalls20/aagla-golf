@@ -4,9 +4,9 @@ import {
   careerTotals,
   isPlayed,
   seasonLines,
-  toParWords,
   type CareerRound,
 } from './career';
+import { toParWords } from './prose';
 
 /** A played round, with only the fields a test cares about overridden. */
 function round(over: Partial<CareerRound> = {}): CareerRound {
@@ -134,7 +134,7 @@ describe('toParWords', () => {
   it('reads the way golfers say it', () => {
     expect(toParWords(0)).toBe('level par');
     expect(toParWords(4.2)).toBe('4.2 over par');
-    expect(toParWords(-2)).toBe('2 under par');
+    expect(toParWords(-2)).toBe('two under par');
   });
 });
 
@@ -163,7 +163,7 @@ describe('careerSummary', () => {
       chapters: [chapter('Iowa', [round({ year: 2024 }), round({ year: 2025 })])],
       currentYear: 2026,
     });
-    expect(text).toContain('Josh Ingalls has played 2 rounds over 2 seasons');
+    expect(text).toContain('Josh Ingalls has played two rounds over two seasons');
     expect(text).toContain('between 2024 and 2025');
   });
 
@@ -185,9 +185,9 @@ describe('careerSummary', () => {
       ],
       currentYear: 2026,
     });
-    expect(text).toContain('3 rounds');
+    expect(text).toContain('three rounds');
     // One kind of win, so no breakdown is needed.
-    expect(text).toContain('2 events won.');
+    expect(text).toContain('has won twice across Iowa and Seattle — two events.');
   });
 
   it('lists championships with the years they were won', () => {
@@ -201,7 +201,7 @@ describe('careerSummary', () => {
       ],
       currentYear: 2026,
     });
-    expect(text).toContain('1 Championship (2022)');
+    expect(text).toContain('one Championship (2022)');
   });
 
   it('does not count a Championship win twice in the honours list', () => {
@@ -222,7 +222,7 @@ describe('careerSummary', () => {
     // Four firsts stated as one total broken down, not as separate figures
     // that a reader would add up to six.
     expect(text).toContain(
-      '4 wins in all: 1 event, 1 major and 2 Championships (2016, 2025)',
+      'has won four times: one event, one major and two Championships (2016, 2025)',
     );
   });
 
@@ -232,7 +232,7 @@ describe('careerSummary', () => {
       chapters: [chapter('Iowa', [round({ eventType: 'major', place: 1 })])],
       currentYear: 2026,
     });
-    expect(text).toContain('1 major won.');
+    expect(text).toContain('has won once — one major.');
     expect(text).not.toContain('in all');
   });
 
@@ -243,7 +243,7 @@ describe('careerSummary', () => {
       currentYear: 2026,
     });
     expect(text).toContain('No wins yet');
-    expect(text).toContain('2 top-three finishes');
+    expect(text).toContain('two top-three finishes');
   });
 
   it('picks the peak season on scoring, not on points total', () => {
@@ -262,7 +262,7 @@ describe('careerSummary', () => {
       currentYear: 2026,
     });
     expect(text).toContain('sharpest season was 2025');
-    expect(text).toContain('2 over par');
+    expect(text).toContain('two over par');
   });
 
   it('resolves the peak season inside a chapter and says which one', () => {
@@ -285,7 +285,7 @@ describe('careerSummary', () => {
       currentYear: 2026,
     });
     expect(text).toContain('sharpest season was 2026 in Iowa');
-    expect(text).toContain('1 over par');
+    expect(text).toContain('one over par');
   });
 
   it('reads the handicap from the chapter played most, never a blend', () => {
@@ -380,7 +380,7 @@ describe('careerSummary', () => {
       chapters: [chapter('Iowa', [round()])],
       currentYear: 2024,
     });
-    expect(text).toContain('1 round over 1 season');
+    expect(text).toContain('one round over one season');
     expect(text).not.toContain('sharpest season');
     expect(text).not.toContain('Career best round');
   });

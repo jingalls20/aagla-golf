@@ -1,4 +1,5 @@
 import type { HandicapResult, HistoricalRound } from './types';
+import { count, word } from './prose';
 
 /**
  * Handicaps are whole strokes, never fractional -- unlike points, which
@@ -64,7 +65,7 @@ export function computeHandicap(
 
   const note =
     considered.length < windowEvents
-      ? `Only ${considered.length} of ${sourceYearLabel}'s round(s) available (wanted ${windowEvents}).`
+      ? `Only ${count(considered.length, 'round')} from ${sourceYearLabel} to draw on, against a window of ${windowEvents}.`
       : '';
 
   return { fs, roundsUsed: best, consideredCount: considered.length, note };
@@ -114,10 +115,14 @@ export function describeHandicap(
     return `No ${sourceYearLabel} rounds recorded yet, so this defaults to 0.`;
   }
 
+  // "round(s)" was the giveaway that nobody had read this sentence aloud.
+  // It is a short line, but it sits under every player's handicap and it is
+  // held to the same standard as the summaries.
   const scores = result.roundsUsed.map((r) => r.trueScore).join(', ');
   const base =
-    `Best ${result.roundsUsed.length} of last ${result.consideredCount} ` +
-    `${sourceYearLabel} round(s): ${scores} → average ${roundHandicap(result.fs)}.`;
+    `The best ${word(result.roundsUsed.length)} of the last ` +
+    `${count(result.consideredCount, 'round')} played in ${sourceYearLabel} — ` +
+    `${scores} — average ${roundHandicap(result.fs)}.`;
 
   return result.note ? `${base} ${result.note}` : base;
 }
