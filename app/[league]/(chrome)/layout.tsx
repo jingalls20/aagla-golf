@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { getLeague } from '@/lib/data/queries';
+import { currentYearOf, getLeague, getSeasons, isOffseason } from '@/lib/data/queries';
 import { isLeagueAdmin } from '@/lib/data/admin';
 import { AuthBar } from '@/components/auth-bar';
 
@@ -28,8 +28,21 @@ export default async function LeagueLayout({
   const { league: slug } = await params;
   const league = await getLeague(slug);
   if (!league) notFound();
-  const admin = await isLeagueAdmin(league.id);
-  const tabs = admin ? [...TABS, { href: '/admin', label: 'Admin' }] : TABS;
+  const [admin, seasons] = await Promise.all([
+    isLeagueAdmin(league.id),
+    getSeasons(league.id),
+  ]);
+
+  // Between seasons the first tab is a recap rather than a table, and the
+  // label should say so before anyone clicks it -- "Current Season" is a
+  // promise of a live race that a finished year cannot keep.
+  const offseason = isOffseason(seasons);
+  const year = currentYearOf(seasons);
+  const tabs = (
+    offseason && year !== null
+      ? TABS.map((t) => (t.href === '' ? { ...t, label: `${year} Recap` } : t))
+      : TABS
+  ).concat(admin ? [{ href: '/admin', label: 'Admin' }] : []);
 
   return (
     <div className="mx-auto max-w-5xl px-4 py-6">

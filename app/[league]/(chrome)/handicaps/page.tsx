@@ -1,6 +1,12 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { currentYearOf, getHandicaps, getLeague, getSeasons } from '@/lib/data/queries';
+import {
+  currentYearOf,
+  getHandicaps,
+  getLeague,
+  getSeasons,
+  isOffseason,
+} from '@/lib/data/queries';
 import type { HandicapRow } from '@/lib/data/queries';
 import {
   describeHandicap,
@@ -41,15 +47,23 @@ const CONSISTENCY_TONE: Record<Consistency, 'green' | 'slate' | 'amber'> = {
 };
 
 /** Lower is better, so a fall is an improvement. */
-function Movement({ from, to }: { from: number | null; to: number }) {
-  if (from === null) return <span className="text-slate-300">—</span>;
+function Movement({
+  from,
+  to,
+  title,
+}: {
+  from: number | null;
+  to: number | null;
+  title?: string;
+}) {
+  if (from === null || to === null) return <span className="text-slate-300">—</span>;
   const delta = to - from;
   if (delta === 0) return <span className="text-slate-400">held</span>;
   const down = delta < 0;
   return (
     <span
       className={down ? 'text-fairway-600 dark:text-fairway-50' : 'text-amber-600'}
-      title={`${from} in the previous season`}
+      title={title ?? `${from} in the previous season`}
     >
       {down ? '↓' : '↑'} {Math.abs(delta)}
     </span>
@@ -229,26 +243,57 @@ export default async function HandicapsPage({
       ? Number(yearParam)
       : (currentYearOf(seasons) as number);
   const priorYear = year - 1;
+  // Only the season actually in the offseason gets the forward-facing
+  // treatment. Flipping an old year round would be nonsense -- its "next
+  // season" has been played and locked for months.
+  const offseason = isOffseason(seasons) && year === currentYearOf(seasons);
   const allHandicaps = await getHandicaps(league.id, year);
   const handicaps = showInactive
     ? allHandicaps
     : allHandicaps.filter((h) => h.status === 'active');
 
-  const columns: SortableColumn[] = [
-    { key: 'player', label: 'Player', sortable: true },
-    { key: 'fs', label: 'Handicap', align: 'right', sortable: true },
-    { key: 'move', label: 'vs last year', align: 'right', sortable: true },
-    { key: 'used', label: 'Scores counted', align: 'right' },
-    { key: 'unused', label: 'Not counted', align: 'right' },
-    { key: 'all', label: 'If all counted', align: 'right', sortable: true },
-    { key: 'consistency', label: 'Consistency', sortable: true },
-    {
-      key: 'projected',
-      label: `${year + 1} projected`,
-      align: 'right',
-      sortable: true,
-    },
-  ];
+  // In season the locked figure leads: it is the number governing every card
+  // being handed in. Between seasons nobody is playing off it any more, and
+  // the only handicap that matters is the one waiting for next year -- so the
+  // two swap places rather than the projection merely being highlighted where
+  // it sits, eight columns to the right of where anyone is looking.
+  const columns: SortableColumn[] = offseason
+    ? [
+        { key: 'player', label: 'Player', sortable: true },
+        {
+          key: 'projected',
+          label: (
+            <span className="inline-block leading-tight">
+              {year + 1} handicap
+              <span className="block text-[10px] font-normal normal-case tracking-normal text-amber-600 dark:text-amber-400">
+                provisional
+              </span>
+            </span>
+          ),
+          align: 'right',
+          sortable: true,
+        },
+        { key: 'shift', label: 'Change', align: 'right', sortable: true },
+        { key: 'fs', label: `${year} handicap`, align: 'right', sortable: true },
+        { key: 'used', label: 'Scores counted', align: 'right' },
+        { key: 'unused', label: 'Not counted', align: 'right' },
+        { key: 'consistency', label: 'Consistency', sortable: true },
+      ]
+    : [
+        { key: 'player', label: 'Player', sortable: true },
+        { key: 'fs', label: 'Handicap', align: 'right', sortable: true },
+        { key: 'move', label: 'vs last year', align: 'right', sortable: true },
+        { key: 'used', label: 'Scores counted', align: 'right' },
+        { key: 'unused', label: 'Not counted', align: 'right' },
+        { key: 'all', label: 'If all counted', align: 'right', sortable: true },
+        { key: 'consistency', label: 'Consistency', sortable: true },
+        {
+          key: 'projected',
+          label: `${year + 1} projected`,
+          align: 'right',
+          sortable: true,
+        },
+      ];
 
   const rows: SortableRow[] = handicaps.map((h) => {
     const c = h.computed;
@@ -264,6 +309,7 @@ export default async function HandicapsPage({
         all: c?.allConsideredFs ?? null,
         consistency: c?.stdDev ?? null,
         projected: h.projected?.fs ?? null,
+        shift: h.projected ? h.projected.fs - h.fs : null,
       },
       cells: {
         player: (
@@ -278,7 +324,13 @@ export default async function HandicapsPage({
         ),
         fs: (
           <span className="whitespace-nowrap">
-            <span className="font-semibold tabular-nums">{fmt(h.fs)}</span>
+            <span
+              className={
+                offseason ? 'tabular-nums text-slate-500' : 'font-semibold tabular-nums'
+              }
+            >
+              {fmt(h.fs)}
+            </span>
             {h.isOverride ? (
               <span className="ml-1.5">
                 <Badge tone="amber">set</Badge>
@@ -289,6 +341,15 @@ export default async function HandicapsPage({
         move: (
           <span className="whitespace-nowrap tabular-nums">
             <Movement from={h.priorFs} to={h.fs} />
+          </span>
+        ),
+        shift: (
+          <span className="whitespace-nowrap tabular-nums">
+            <Movement
+              from={h.fs}
+              to={h.projected?.fs ?? null}
+              title={`${h.fs} this season`}
+            />
           </span>
         ),
         used: <ScoreList rounds={used} />,
@@ -312,7 +373,9 @@ export default async function HandicapsPage({
           <span className="tabular-nums">
             {h.projected ? (
               <>
-                {h.projected.fs}
+                <span className={offseason ? 'text-base font-semibold' : undefined}>
+                  {h.projected.fs}
+                </span>
                 <span className="ml-1 text-xs text-slate-400">
                   ({h.projectedRounds})
                 </span>
@@ -344,13 +407,31 @@ export default async function HandicapsPage({
         <InactiveToggle show={showInactive} />
       </div>
 
-      <Card title={`${year} handicaps`}>
+      <Card title={offseason ? `Heading into ${year + 1}` : `${year} handicaps`}>
         <TableHint>
-          Locked for the season: the average of a player&rsquo;s best 3 true scores from
-          their last 7 Event or Major rounds of {priorYear}, rounded to the nearest
-          whole stroke. A negative figure means the player gives strokes back. Click any
-          row for the full working — every {priorYear} round, what counted, and what the
-          figure would have been under other rules.
+          {offseason ? (
+            <>
+              The {year} season is over, so the figure that matters now is the one
+              players will carry into <strong>{year + 1}</strong>: the average of their
+              best 3 true scores from their last 7 Event or Major rounds of {year},
+              rounded to the nearest whole stroke. It is <strong>provisional</strong>{' '}
+              &mdash; it locks when {year + 1} opens, and an admin can override it
+              before then, so treat it as where a player currently stands rather than as
+              a decision already made. The number in brackets is how many {year} rounds
+              it was drawn from; fewer rounds, softer figure. {year}&rsquo;s locked
+              handicap sits alongside for comparison, and <strong>Change</strong> is the
+              difference &mdash; a fall means the player got better and gives up
+              strokes. Click any row for the full working.
+            </>
+          ) : (
+            <>
+              Locked for the season: the average of a player&rsquo;s best 3 true scores
+              from their last 7 Event or Major rounds of {priorYear}, rounded to the
+              nearest whole stroke. A negative figure means the player gives strokes
+              back. Click any row for the full working — every {priorYear} round, what
+              counted, and what the figure would have been under other rules.
+            </>
+          )}
         </TableHint>
         {handicaps.length === 0 ? (
           <Empty>No handicaps locked for {year} yet.</Empty>
@@ -358,7 +439,11 @@ export default async function HandicapsPage({
           <SortableTable
             columns={columns}
             rows={rows}
-            defaultSort={{ key: 'player', dir: 'asc' }}
+            defaultSort={
+              offseason
+                ? { key: 'projected', dir: 'asc' }
+                : { key: 'player', dir: 'asc' }
+            }
             sticky
           />
         )}

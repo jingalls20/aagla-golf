@@ -12,6 +12,8 @@ export interface SeasonAdminRow {
   id: string;
   year: number;
   isCurrent: boolean;
+  /** Between seasons: recap rather than race. See migration 0016. */
+  isOffseason: boolean;
   handicapBestOf: number;
   handicapWindowEvents: number;
   status: 'open' | 'closed';
@@ -24,8 +26,8 @@ export async function getSeasonsAdmin(leagueId: string): Promise<SeasonAdminRow[
   const { data } = await supabase
     .from('seasons')
     .select(
-      'id, year, is_current, handicap_best_of, handicap_window_events, status, ' +
-        'champion_player_id',
+      'id, year, is_current, is_offseason, handicap_best_of, ' +
+        'handicap_window_events, status, champion_player_id',
     )
     .eq('league_id', leagueId)
     .order('year', { ascending: false });
@@ -34,6 +36,7 @@ export async function getSeasonsAdmin(leagueId: string): Promise<SeasonAdminRow[
       id: string;
       year: number;
       is_current: boolean;
+      is_offseason: boolean;
       handicap_best_of: number;
       handicap_window_events: number;
       status: 'open' | 'closed';
@@ -43,6 +46,7 @@ export async function getSeasonsAdmin(leagueId: string): Promise<SeasonAdminRow[
     id: r.id,
     year: r.year,
     isCurrent: r.is_current,
+    isOffseason: r.is_offseason,
     handicapBestOf: r.handicap_best_of,
     handicapWindowEvents: r.handicap_window_events,
     status: r.status,

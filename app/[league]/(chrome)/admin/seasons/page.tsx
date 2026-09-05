@@ -3,7 +3,11 @@ import { notFound } from 'next/navigation';
 import { getLeague } from '@/lib/data/queries';
 import { isLeagueAdmin } from '@/lib/data/admin';
 import { getSeasonsAdmin } from '@/lib/data/seasons';
-import { createSeason, setCurrentSeason } from '@/lib/actions/admin';
+import {
+  createSeason,
+  setCurrentSeason,
+  setSeasonOffseason,
+} from '@/lib/actions/admin';
 import { Badge, Card, Empty, TableWrap, Th, Td } from '@/components/ui';
 import { TableHint } from '@/components/table-hint';
 
@@ -39,6 +43,14 @@ export default async function SeasonsAdminPage({
       </Link>
 
       <Card title="Seasons">
+        <TableHint>
+          <strong>Current</strong> is the season the app opens on.{' '}
+          <strong>Offseason</strong> is for the stretch after the last card is in and
+          before next year&rsquo;s schedule exists: the season stays current, but the
+          first tab turns into a recap of the year instead of a live table, and the
+          handicaps screen turns to face next season. Leave it on until the new schedule
+          is ready &mdash; making the new season current is what ends it.
+        </TableHint>
         {seasons.length === 0 ? (
           <Empty>No seasons yet — create one below.</Empty>
         ) : (
@@ -65,21 +77,58 @@ export default async function SeasonsAdminPage({
                   <Td muted>
                     best {s.handicapBestOf} of last {s.handicapWindowEvents}
                   </Td>
-                  <Td>{s.isCurrent ? <Badge tone="green">current</Badge> : null}</Td>
+                  <Td>
+                    <span className="flex flex-wrap items-center gap-1">
+                      {s.isCurrent ? <Badge tone="green">current</Badge> : null}
+                      {s.isOffseason ? <Badge tone="amber">offseason</Badge> : null}
+                    </span>
+                  </Td>
                   <Td align="right">
-                    {!s.isCurrent ? (
-                      <form action={setCurrentSeason}>
+                    <span className="flex flex-wrap items-center justify-end gap-3">
+                      {/*
+                        The button sits outside the label rather than inside
+                        it. A button nested in a label is safe by spec --
+                        interactive descendants swallow the label's activation
+                        -- but relying on that to stop "Save" silently
+                        flipping the very checkbox it is saving is a subtlety
+                        nobody should have to remember.
+                      */}
+                      <form action={setSeasonOffseason}>
                         <input type="hidden" name="leagueId" value={league.id} />
                         <input type="hidden" name="slug" value={slug} />
                         <input type="hidden" name="seasonId" value={s.id} />
-                        <button
-                          type="submit"
-                          className="rounded-md border border-slate-200 px-2 py-1 text-xs text-slate-500 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800"
-                        >
-                          Make current
-                        </button>
+                        <span className="flex items-center gap-1.5">
+                          <label className="flex cursor-pointer items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
+                            <input
+                              type="checkbox"
+                              name="offseason"
+                              defaultChecked={s.isOffseason}
+                              className="cursor-pointer"
+                            />
+                            Offseason
+                          </label>
+                          <button
+                            type="submit"
+                            className="rounded-md border border-slate-200 px-2 py-0.5 text-[10px] text-slate-500 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800"
+                          >
+                            Save
+                          </button>
+                        </span>
                       </form>
-                    ) : null}
+                      {!s.isCurrent ? (
+                        <form action={setCurrentSeason}>
+                          <input type="hidden" name="leagueId" value={league.id} />
+                          <input type="hidden" name="slug" value={slug} />
+                          <input type="hidden" name="seasonId" value={s.id} />
+                          <button
+                            type="submit"
+                            className="rounded-md border border-slate-200 px-2 py-1 text-xs text-slate-500 hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800"
+                          >
+                            Make current
+                          </button>
+                        </form>
+                      ) : null}
+                    </span>
                   </Td>
                 </tr>
               ))}

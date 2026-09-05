@@ -137,6 +137,9 @@ export async function getLeague(slug: string): Promise<League | null> {
 export interface SeasonInfo {
   year: number;
   isCurrent: boolean;
+  /** Season is over, next season's schedule is not out yet. See migration
+   *  0016: the app reads this as "show a recap, not a race". */
+  isOffseason: boolean;
 }
 
 /**
@@ -151,12 +154,20 @@ export async function getSeasons(leagueId: string): Promise<SeasonInfo[]> {
   const supabase = await createClient();
   const { data } = await supabase
     .from('seasons')
-    .select('year, is_current')
+    .select('year, is_current, is_offseason')
     .eq('league_id', leagueId)
     .order('year', { ascending: false });
-  const rows = ((data ?? []) as unknown as { year: number; is_current: boolean }[]).map(
-    (r) => ({ year: r.year, isCurrent: r.is_current }),
-  );
+  const rows = (
+    (data ?? []) as unknown as {
+      year: number;
+      is_current: boolean;
+      is_offseason: boolean;
+    }[]
+  ).map((r) => ({
+    year: r.year,
+    isCurrent: r.is_current,
+    isOffseason: r.is_offseason,
+  }));
   if (rows.length > 0 && !rows.some((r) => r.isCurrent)) {
     rows[0].isCurrent = true;
   }
@@ -166,6 +177,20 @@ export async function getSeasons(leagueId: string): Promise<SeasonInfo[]> {
 /** The current season's year, falling back to the newest season if unset. */
 export function currentYearOf(seasons: SeasonInfo[]): number | null {
   return seasons.find((s) => s.isCurrent)?.year ?? seasons[0]?.year ?? null;
+}
+
+/**
+ * Is the league between seasons?
+ *
+ * Asked of the *current* season rather than of any season, because that is
+ * the only one the flag can sensibly describe: an old season carrying a
+ * stale flag should not put the whole app into a recap of a year nobody is
+ * looking at. Falls back the same way `currentYearOf` does, so a league that
+ * has never marked a current season still answers.
+ */
+export function isOffseason(seasons: SeasonInfo[]): boolean {
+  const current = seasons.find((s) => s.isCurrent) ?? seasons[0];
+  return current?.isOffseason ?? false;
 }
 
 export async function getEvents(

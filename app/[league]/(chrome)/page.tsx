@@ -4,13 +4,14 @@ import {
   championIdsOf,
   getSeasonChampionId,
   currentYearOf,
+  isOffseason,
   getEvents,
   getLeague,
   getSeasonScores,
   getSeasons,
   getStandings,
 } from '@/lib/data/queries';
-import { Card, Empty, fmt, toPar } from '@/components/ui';
+import { Badge, Card, Empty, fmt, toPar } from '@/components/ui';
 import { Avatar } from '@/components/avatar';
 import { InactiveToggle } from '@/components/selectors';
 import {
@@ -20,6 +21,8 @@ import {
 } from '@/components/sortable-table';
 import { TableHint } from '@/components/table-hint';
 import { eventHeaderLabel } from '@/lib/event-label';
+import { seasonRecapView } from '@/lib/domain/offseason';
+import { SeasonRecap } from '@/components/season-recap';
 import { championshipHandicap } from '@/lib/domain/handicap';
 import { resolveShowInactive } from '@/lib/prefs';
 import type { ScoreRow } from '@/lib/data/queries';
@@ -41,6 +44,10 @@ export default async function StandingsPage({
   const seasons = await getSeasons(league.id);
   const year = currentYearOf(seasons);
   if (year === null) return <Empty>No seasons yet.</Empty>;
+  // Between seasons the same data reads as a result rather than a race. See
+  // migration 0016 -- it is an admin's word, not something inferred from
+  // whether every event happens to have a score.
+  const offseason = isOffseason(seasons);
 
   const [standings, events, scores, namedChampionId] = await Promise.all([
     getStandings(league.id, year),
@@ -58,7 +65,14 @@ export default async function StandingsPage({
   // Player × event grid. Every event in the season gets a column, played or
   // not -- an admin scanning the season wants to see what's still ahead, not
   // just what's already in the books.
-  const seasonEvents = events;
+  // In season, every event gets a column whether or not it has been played --
+  // an admin scanning the table wants to see what is still ahead. Once the
+  // season is over there is no "ahead", and a column of dashes for an event
+  // that never happened is just a hole in the recap.
+  const scoredEventIds = new Set(scores.map((s) => s.eventId));
+  const seasonEvents = offseason
+    ? events.filter((e) => scoredEventIds.has(e.id))
+    : events;
   const cell = new Map<string, ScoreRow>();
   const playerMeta = new Map<
     string,
@@ -79,30 +93,36 @@ export default async function StandingsPage({
     ? allRowPlayers
     : allRowPlayers.filter(([, meta]) => meta.status === 'active');
 
-  const standingsColumns: SortableColumn[] = [
-    { key: 'rank', label: '#', align: 'right', sortable: true },
-    { key: 'player', label: 'Player', sortable: true },
-    { key: 'points', label: 'Event Points', align: 'right', sortable: true },
-    { key: 'played', label: 'Events Played', align: 'right', sortable: true },
-    {
-      key: 'championshipStart',
-      // The figure moves with the standings, so it is a projection rather
-      // than a fact until the Championship is actually played. This screen
-      // only ever shows the current season, so the caveat is always true
-      // here -- the History tab, which shows finished seasons, says nothing
-      // of the sort.
-      label: (
-        <span className="inline-block leading-tight">
-          Championship start
-          <span className="block text-[10px] font-normal normal-case tracking-normal text-slate-400">
-            if the season ended today
+  // "Championship start" is a projection of a round still to be played, so
+  // once the Championship is in the books it is answering a question nobody
+  // is asking any more. Dropped rather than frozen: a stale projection sitting
+  // beside a finished result invites being read as a fact.
+  const standingsColumns: SortableColumn[] = (
+    [
+      { key: 'rank', label: '#', align: 'right', sortable: true },
+      { key: 'player', label: 'Player', sortable: true },
+      { key: 'points', label: 'Event Points', align: 'right', sortable: true },
+      { key: 'played', label: 'Events Played', align: 'right', sortable: true },
+      {
+        key: 'championshipStart',
+        // The figure moves with the standings, so it is a projection rather
+        // than a fact until the Championship is actually played. This screen
+        // only ever shows the current season, so the caveat is always true
+        // here -- the History tab, which shows finished seasons, says nothing
+        // of the sort.
+        label: (
+          <span className="inline-block leading-tight">
+            Championship start
+            <span className="block text-[10px] font-normal normal-case tracking-normal text-slate-400">
+              if the season ended today
+            </span>
           </span>
-        </span>
-      ),
-      align: 'right',
-      sortable: true,
-    },
-  ];
+        ),
+        align: 'right',
+        sortable: true,
+      },
+    ] as SortableColumn[]
+  ).filter((c) => !(offseason && c.key === 'championshipStart'));
   const standingsRows: SortableRow[] = visibleStandings.map((s) => {
     // What this player would start the Championship round on if the season
     // ended today: the season leader plays their full handicap, and every
@@ -246,26 +266,88 @@ export default async function StandingsPage({
     return { key: playerId, cells, sortValues };
   });
 
+  // The recap reads the whole field, not the filtered view: hiding a player
+  // who has left the chapter should not quietly erase the round of the year
+  // they shot before going.
+  const eventLabels = new Map(events.map((e) => [e.id, eventHeaderLabel(e)]));
+  const recap = offseason
+    ? seasonRecapView({
+        year,
+        standings: standings.map((s) => ({
+          playerId: s.playerId,
+          playerName: s.playerName,
+          totalPoints: s.totalPoints,
+          eventsPlayed: s.eventsPlayed,
+          seasonRank: s.seasonRank,
+        })),
+        rounds: scores.map((s) => {
+          const event = events.find((e) => e.id === s.eventId);
+          return {
+            playerId: s.playerId,
+            playerName: s.playerName,
+            eventId: s.eventId,
+            eventLabel: eventLabels.get(s.eventId) ?? '',
+            eventType: event?.eventType ?? 'event',
+            trueScore: s.trueScore,
+            netScore: s.netScore,
+            place: s.place,
+          };
+        }),
+        championIds: [...championIds],
+        eventsPlayed: scoredEventIds.size,
+        eventsScheduled: events.length,
+      })
+    : null;
+
+  const recapChampions = [...championIds]
+    .map((id) => {
+      const meta = playerMeta.get(id);
+      return meta ? { playerId: id, name: meta.name, photoUrl: meta.photoUrl } : null;
+    })
+    .filter((c): c is { playerId: string; name: string; photoUrl: string | null } =>
+      Boolean(c),
+    );
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-slate-400">
-          Current season{' '}
+          {offseason ? 'Season complete' : 'Current season'}{' '}
           <span className="font-medium text-slate-600 dark:text-slate-300">{year}</span>
+          {offseason ? (
+            <span className="ml-2 align-middle">
+              <Badge tone="amber">offseason</Badge>
+            </span>
+          ) : null}
         </p>
         <InactiveToggle show={showInactive} />
       </div>
 
-      <Card title={`${year} season standings`}>
+      {recap ? (
+        <SeasonRecap
+          year={year}
+          slug={slug}
+          champions={recapChampions}
+          summary={recap.summary}
+          highlights={recap.highlights}
+        />
+      ) : null}
+
+      <Card title={`${year} ${offseason ? 'final standings' : 'season standings'}`}>
         <TableHint>
           Lowest total wins — winning an event scores zero. A player&rsquo;s handicap is
-          shown in parentheses next to their name. <strong>Championship start</strong>{' '}
-          is where they&rsquo;d begin the Championship round relative to par if the
-          season ended today: the leader keeps their full handicap, and every place
-          after that gives up one more stroke. Like a net score, a big handicap starts
-          well under par, and a small or negative one can start over. Championships are
-          excluded from Event Points, but 🏆 marks that year&rsquo;s Championship
-          winner, wherever they landed in the standings.
+          shown in parentheses next to their name.{' '}
+          {offseason ? null : (
+            <>
+              <strong>Championship start</strong> is where they&rsquo;d begin the
+              Championship round relative to par if the season ended today: the leader
+              keeps their full handicap, and every place after that gives up one more
+              stroke. Like a net score, a big handicap starts well under par, and a
+              small or negative one can start over.{' '}
+            </>
+          )}
+          Championships are excluded from Event Points, but 🏆 marks that year&rsquo;s
+          Championship winner, wherever they landed in the standings.
         </TableHint>
         {visibleStandings.length === 0 ? (
           <Empty>No results recorded for {year} yet.</Empty>
@@ -282,7 +364,7 @@ export default async function StandingsPage({
         )}
       </Card>
 
-      <Card title={`${year} events`}>
+      <Card title={`${year} ${offseason ? 'season, round by round' : 'events'}`}>
         <TableHint>
           Every event in the season, played or not. The big number is finishing place;
           below it, net score relative to par and event points earned. A dash means that

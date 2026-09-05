@@ -99,6 +99,41 @@ export async function setCurrentSeason(formData: FormData): Promise<void> {
 }
 
 /**
+ * Turn the offseason on or off for one season.
+ *
+ * Not folded into `setCurrentSeason`, because the two answer different
+ * questions and the admin needs them apart: making a season current says
+ * "this is the year the app opens on", and this says "that year is done".
+ * A season is normally both at once for a few months.
+ *
+ * Making another season current does not clear this one's flag. It costs
+ * nothing to leave -- `isOffseason` only ever asks the *current* season --
+ * and clearing it here would mean a rollover silently rewriting a season
+ * nobody asked it to touch.
+ */
+export async function setSeasonOffseason(formData: FormData): Promise<void> {
+  const leagueId = String(formData.get('leagueId') ?? '');
+  const slug = String(formData.get('slug') ?? '');
+  const seasonId = String(formData.get('seasonId') ?? '');
+  // A checkbox that is off submits nothing at all, so absence is "off"
+  // rather than a missing field worth complaining about.
+  const on = formData.get('offseason') === 'on';
+  if (!leagueId || !slug || !seasonId) {
+    throw new Error('Missing leagueId, slug, or seasonId on the offseason form.');
+  }
+  await requireAdmin(leagueId, slug);
+
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from('seasons')
+    .update({ is_offseason: on })
+    .eq('id', seasonId);
+  if (error) throw new Error(`Setting the offseason flag: ${error.message}`);
+
+  redirect(`/${slug}/admin/seasons`);
+}
+
+/**
  * Add one or more events to a season in a single submit, named and typed up
  * front -- the season-builder alternative to creating them one at a time.
  * Sequence continues from whatever the season already has, in the order the
