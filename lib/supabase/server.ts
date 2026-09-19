@@ -1,6 +1,6 @@
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
-import { SUPABASE_ANON_KEY, SUPABASE_URL } from './config';
+import { SUPABASE_ANON_KEY, SUPABASE_URL, timeoutFetch } from './config';
 
 /**
  * Supabase client for Server Components, Server Actions and Route Handlers.
@@ -33,6 +33,9 @@ export async function createClient() {
   const cookieStore = await cookies();
 
   return createServerClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    // Every query gets a deadline. See config.ts -- a paused database used
+    // to hang requests until the platform killed them at 25 seconds.
+    global: { fetch: timeoutFetch },
     cookies: {
       getAll() {
         return cookieStore.getAll();
@@ -71,6 +74,7 @@ export function createAdminClient() {
   }
 
   return createServerClient(SUPABASE_URL, key, {
+    global: { fetch: timeoutFetch },
     cookies: { getAll: () => [], setAll: () => {} },
   });
 }

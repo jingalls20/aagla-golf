@@ -115,22 +115,56 @@ export async function getSeasonChampionId(
   );
 }
 
+/**
+ * The database could not be reached, as distinct from having nothing to say.
+ *
+ * Worth a type of its own because the two are opposite answers that look
+ * identical at the call site. Every query in here treats a failure as "no
+ * rows", which is right almost everywhere -- row-level security legitimately
+ * returns nothing all the time -- but wrong for the two queries every page
+ * passes through. When the database was paused, an empty leagues list would
+ * have rendered "No chapters available" and a missing league a 404, both
+ * stating as fact something that was merely unknown.
+ */
+export class DatabaseUnavailableError extends Error {
+  constructor(cause?: string) {
+    super(
+      cause
+        ? `The database could not be reached: ${cause}`
+        : 'The database could not be reached.',
+    );
+    this.name = 'DatabaseUnavailableError';
+  }
+}
+
+/**
+ * Every chapter, or an error if the question could not be asked.
+ *
+ * A plain select against a public table does not fail for permission
+ * reasons -- row-level security filters rows rather than erroring -- so any
+ * error here means the round trip itself did not work.
+ */
 export async function getLeagues(): Promise<League[]> {
   const supabase = await createClient();
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('leagues')
     .select('id, slug, name, chapter')
     .order('name');
+  if (error) throw new DatabaseUnavailableError(error.message);
   return (data ?? []) as unknown as League[];
 }
 
+/** One chapter. Null means no such slug; throwing means we could not ask. */
 export async function getLeague(slug: string): Promise<League | null> {
   const supabase = await createClient();
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('leagues')
     .select('id, slug, name, chapter')
     .eq('slug', slug)
     .maybeSingle();
+  // `maybeSingle` reports no rows as data: null with no error, so an error
+  // here is never "that chapter does not exist".
+  if (error) throw new DatabaseUnavailableError(error.message);
   return (data as unknown as League) ?? null;
 }
 

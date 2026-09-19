@@ -1,6 +1,6 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
-import { SUPABASE_ANON_KEY, SUPABASE_URL } from './config';
+import { SUPABASE_ANON_KEY, SUPABASE_URL, timeoutFetch } from './config';
 
 /**
  * Refreshes the auth session on every request.
@@ -35,6 +35,7 @@ export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    global: { fetch: timeoutFetch },
     cookies: {
       getAll() {
         return request.cookies.getAll();
@@ -55,7 +56,23 @@ export async function updateSession(request: NextRequest) {
     },
   });
 
-  await supabase.auth.getUser();
+  // A failure here must not stop the request.
+  //
+  // This call runs before every page, and when the database was paused it
+  // hung until Vercel gave up at 25 seconds -- so an auth server nobody was
+  // asking anything of took down the public scoreboard, the record book and
+  // the Hall of Champions, none of which need a session at all.
+  //
+  // Refreshing a token is a convenience: it keeps a signed-in admin signed
+  // in. If it cannot be done, the right outcome is that the request proceeds
+  // and renders whatever an anonymous visitor would see, which for most of
+  // this app is everything.
+  try {
+    await supabase.auth.getUser();
+  } catch {
+    // Deliberately silent. The deadline in config.ts means this is reached
+    // in seconds rather than held open, and the visitor gets a page.
+  }
 
   return response;
 }
