@@ -11,6 +11,7 @@ import {
 import { Badge, Card, Empty, TableWrap, Th, Td } from '@/components/ui';
 import { Avatar } from '@/components/avatar';
 import { TableHint } from '@/components/table-hint';
+import { PhotoUploadForm } from '@/components/photo-upload-form';
 
 export default async function PlayersAdminPage({
   params,
@@ -55,7 +56,12 @@ export default async function PlayersAdminPage({
           it&rsquo;s how the league tells one player from another across every season on
           record. Set a face either way: paste a link in the <strong>Photo</strong>{' '}
           field, or choose an image file and press <strong>Upload photo</strong> — an
-          upload replaces whatever the link said. JPEG, PNG, WebP or GIF, up to 5MB.
+          upload replaces whatever the link said. Any photo straight off a phone is
+          fine: it is shrunk before it is sent. A face belongs to the person, not the
+          chapter, so someone who plays in both gets the same photo in both — set it in
+          either and it changes everywhere, and a new roster row for a returning face
+          picks it up automatically. Prefer an upload to a link: links from Facebook and
+          the like expire and quietly stop loading.
         </TableHint>
         <TableWrap>
           <thead>
@@ -120,26 +126,12 @@ export default async function PlayersAdminPage({
                       Save
                     </button>
                   </form>
-                  <form
+                  <PhotoUploadForm
                     action={uploadPlayerPhoto}
-                    className="mt-1.5 flex flex-wrap items-center gap-2"
-                  >
-                    <input type="hidden" name="leagueId" value={league.id} />
-                    <input type="hidden" name="slug" value={slug} />
-                    <input type="hidden" name="playerId" value={p.id} />
-                    <input
-                      type="file"
-                      name="photo"
-                      accept="image/jpeg,image/png,image/webp,image/gif"
-                      className="w-56 text-xs text-slate-500 file:mr-2 file:rounded-md file:border-0 file:bg-slate-100 file:px-2 file:py-1 file:text-xs file:font-medium hover:file:bg-slate-200 dark:file:bg-slate-800 dark:hover:file:bg-slate-700"
-                    />
-                    <button
-                      type="submit"
-                      className="rounded-md border border-slate-200 px-2 py-1 text-xs hover:border-fairway-500 hover:text-fairway-600 dark:border-slate-800"
-                    >
-                      Upload photo
-                    </button>
-                  </form>
+                    leagueId={league.id}
+                    slug={slug}
+                    playerId={p.id}
+                  />
                 </Td>
                 <Td align="right">
                   <form action={setPlayerStatus}>

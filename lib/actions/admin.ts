@@ -376,10 +376,14 @@ export async function uploadPlayerPhoto(formData: FormData): Promise<void> {
       `Unsupported image type ${file.type || '(unknown)'}. Use JPEG, PNG, WebP or GIF.`,
     );
   }
-  const MAX_BYTES = 5 * 1024 * 1024;
+  // Under the 4MB transport limit in next.config.mjs, so this friendlier
+  // message is the one a user actually meets. It used to say 5MB while the
+  // transport silently refused anything over 1MB, which is how uploads came
+  // to fail with a generic error page.
+  const MAX_BYTES = 3.5 * 1024 * 1024;
   if (file.size > MAX_BYTES) {
     throw new Error(
-      `That image is ${(file.size / 1024 / 1024).toFixed(1)}MB; the limit is 5MB.`,
+      `That image is ${(file.size / 1024 / 1024).toFixed(1)}MB; the limit is 3.5MB.`,
     );
   }
 
