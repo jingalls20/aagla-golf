@@ -1,6 +1,6 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
-import { SUPABASE_ANON_KEY, SUPABASE_URL, timeoutFetch } from './config';
+import { SUPABASE_ANON_KEY, SUPABASE_URL, sessionTolerantFetch } from './config';
 
 /**
  * Refreshes the auth session on every request.
@@ -35,7 +35,7 @@ export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });
 
   const supabase = createServerClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-    global: { fetch: timeoutFetch },
+    global: { fetch: sessionTolerantFetch },
     cookies: {
       getAll() {
         return request.cookies.getAll();

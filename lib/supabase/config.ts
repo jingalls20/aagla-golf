@@ -67,3 +67,62 @@ export function timeoutFetch(
     clearTimeout(timer),
   );
 }
+
+/**
+ * Does this response body say the session token itself was refused?
+ *
+ * PostgREST answers 401 with a short JSON message when it will not accept a
+ * JWT: expired, malformed, or -- the one that actually happened here --
+ * `JWT issued at future`, where the token's issued-at timestamp sits a little
+ * ahead of the database server's clock. The token is minted by one Supabase
+ * service and checked by another, so a second of drift between them is enough.
+ *
+ * This is emphatically not "the database is unreachable". The database
+ * answered, promptly and in full; it declined one set of credentials.
+ */
+export function isTokenRejection(status: number, body: string): boolean {
+  if (status !== 401) return false;
+  return /jwt|token|PGRST30[0-9]/i.test(body);
+}
+
+/**
+ * `fetch` that falls back to reading as a signed-out visitor when the
+ * signed-in token is refused.
+ *
+ * Almost everything in this app is public -- the scoreboard, the records, the
+ * Hall, every chapter page. Being signed in adds an Admin tab and nothing
+ * else to a reader. So when a token is refused there is a much better answer
+ * than an error page: ask again without it, and show the visitor the same
+ * page a logged-out visitor would get. A stale token costs the Admin tab for
+ * a moment instead of costing the site.
+ *
+ * Reads only. A write that cannot prove who is making it must fail loudly --
+ * retrying an admin's save anonymously would either be refused by row-level
+ * security in a confusing way or, far worse, quietly do something nobody is
+ * accountable for.
+ */
+export function sessionTolerantFetch(
+  input: RequestInfo | URL,
+  init?: RequestInit,
+): Promise<Response> {
+  return timeoutFetch(input, init).then(async (response) => {
+    const method = (init?.method ?? 'GET').toUpperCase();
+    if (method !== 'GET' && method !== 'HEAD') return response;
+    if (response.status !== 401) return response;
+
+    let body = '';
+    try {
+      body = await response.clone().text();
+    } catch {
+      return response;
+    }
+    if (!isTokenRejection(response.status, body)) return response;
+
+    // The publishable key in place of the user's token: the same credentials
+    // an anonymous visitor arrives with. Retried through `timeoutFetch`
+    // rather than this function, so a second refusal is simply returned.
+    const headers = new Headers(init?.headers);
+    headers.set('Authorization', `Bearer ${SUPABASE_ANON_KEY}`);
+    return timeoutFetch(input, { ...init, headers });
+  });
+}

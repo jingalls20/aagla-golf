@@ -1,6 +1,11 @@
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
-import { SUPABASE_ANON_KEY, SUPABASE_URL, timeoutFetch } from './config';
+import {
+  SUPABASE_ANON_KEY,
+  SUPABASE_URL,
+  sessionTolerantFetch,
+  timeoutFetch,
+} from './config';
 
 /**
  * Supabase client for Server Components, Server Actions and Route Handlers.
@@ -33,9 +38,9 @@ export async function createClient() {
   const cookieStore = await cookies();
 
   return createServerClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-    // Every query gets a deadline. See config.ts -- a paused database used
-    // to hang requests until the platform killed them at 25 seconds.
-    global: { fetch: timeoutFetch },
+    // Every query gets a deadline, and a refused session token falls back
+    // to reading as a signed-out visitor rather than failing. See config.ts.
+    global: { fetch: sessionTolerantFetch },
     cookies: {
       getAll() {
         return cookieStore.getAll();
@@ -74,6 +79,10 @@ export function createAdminClient() {
   }
 
   return createServerClient(SUPABASE_URL, key, {
+    // Plain `timeoutFetch`, deliberately. The signed-out fallback must never
+    // touch this client: silently retrying a service-role request with the
+    // publishable key would turn a privileged operation into an anonymous
+    // one and report whatever came back as success.
     global: { fetch: timeoutFetch },
     cookies: { getAll: () => [], setAll: () => {} },
   });

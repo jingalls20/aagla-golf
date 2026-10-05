@@ -1,5 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { SUPABASE_TIMEOUT_MS, timeoutFetch } from './config';
+import {
+  SUPABASE_ANON_KEY,
+  SUPABASE_TIMEOUT_MS,
+  isTokenRejection,
+  sessionTolerantFetch,
+  timeoutFetch,
+} from './config';
 
 /**
  * These cover the outage of September 2026, where a paused database held
@@ -99,5 +105,97 @@ describe('timeoutFetch', () => {
     // never trips it; fast enough to beat the platform's 25-second kill.
     expect(SUPABASE_TIMEOUT_MS).toBeGreaterThan(2000);
     expect(SUPABASE_TIMEOUT_MS).toBeLessThan(20000);
+  });
+});
+
+/**
+ * These cover the second outage: Supabase minted a session token whose
+ * issued-at timestamp sat a second ahead of the database server's clock, the
+ * database refused it, and -- because the resilience work above treated every
+ * query failure as "unreachable" -- a chapter page died rather than showing
+ * the signed-out view that any visitor would have got.
+ */
+describe('isTokenRejection', () => {
+  it('recognises the refusals that are about credentials', () => {
+    expect(isTokenRejection(401, '{"message":"JWT issued at future"}')).toBe(true);
+    expect(isTokenRejection(401, '{"message":"JWT expired"}')).toBe(true);
+    expect(isTokenRejection(401, '{"code":"PGRST301"}')).toBe(true);
+  });
+
+  it('leaves every other failure alone', () => {
+    // A 401 that is not about a token, and errors that are about the
+    // database rather than the caller, must keep failing as they did.
+    expect(isTokenRejection(401, '{"message":"no API key found"}')).toBe(false);
+    expect(isTokenRejection(403, '{"message":"JWT expired"}')).toBe(false);
+    expect(isTokenRejection(500, '{"message":"database is starting up"}')).toBe(false);
+    expect(isTokenRejection(200, '[]')).toBe(false);
+  });
+});
+
+describe('sessionTolerantFetch', () => {
+  const original = globalThis.fetch;
+  afterEach(() => {
+    globalThis.fetch = original;
+  });
+
+  function respond(...responses: Response[]) {
+    const calls: RequestInit[] = [];
+    let i = 0;
+    globalThis.fetch = vi.fn((_input: unknown, init?: RequestInit) => {
+      calls.push(init ?? {});
+      return Promise.resolve(responses[Math.min(i++, responses.length - 1)]);
+    }) as unknown as typeof fetch;
+    return calls;
+  }
+
+  it('passes a good response through untouched', async () => {
+    const calls = respond(new Response('[]', { status: 200 }));
+    const out = await sessionTolerantFetch('https://example.test');
+    expect(out.status).toBe(200);
+    expect(calls).toHaveLength(1);
+  });
+
+  it('retries a refused token as a signed-out visitor', async () => {
+    const calls = respond(
+      new Response('{"message":"JWT issued at future"}', { status: 401 }),
+      new Response('[{"slug":"aagla-seattle"}]', { status: 200 }),
+    );
+    const out = await sessionTolerantFetch('https://example.test', {
+      headers: { Authorization: 'Bearer stale-user-token' },
+    });
+
+    expect(out.status).toBe(200);
+    expect(calls).toHaveLength(2);
+    const retry = new Headers(calls[1].headers);
+    expect(retry.get('Authorization')).toBe(`Bearer ${SUPABASE_ANON_KEY}`);
+  });
+
+  it('never retries a write, which must fail loudly', async () => {
+    // Quietly re-sending an admin's save without their identity would either
+    // be refused confusingly or, worse, do something nobody is accountable
+    // for.
+    const calls = respond(new Response('{"message":"JWT expired"}', { status: 401 }));
+    const out = await sessionTolerantFetch('https://example.test', { method: 'POST' });
+    expect(out.status).toBe(401);
+    expect(calls).toHaveLength(1);
+  });
+
+  it('does not retry a 401 that is not about the token', async () => {
+    const calls = respond(
+      new Response('{"message":"no API key found"}', { status: 401 }),
+    );
+    const out = await sessionTolerantFetch('https://example.test');
+    expect(out.status).toBe(401);
+    expect(calls).toHaveLength(1);
+  });
+
+  it('returns the second refusal rather than retrying forever', async () => {
+    const calls = respond(
+      new Response('{"message":"JWT issued at future"}', { status: 401 }),
+      new Response('{"message":"JWT issued at future"}', { status: 401 }),
+    );
+    const out = await sessionTolerantFetch('https://example.test');
+    expect(out.status).toBe(401);
+    expect(calls).toHaveLength(2);
   });
 });
