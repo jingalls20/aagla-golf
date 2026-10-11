@@ -1,0 +1,64 @@
+name: Keepalive
+
+# Supabase pauses a free project that has not had "sufficient user database
+# activity" for a week, and their guidance is "a few user requests to the
+# database each day". A golf league in its off-season has no human traffic at
+# all for weeks on end, so the only thing standing between the app and a
+# pause is a scheduler.
+#
+# There is already one in vercel.json. This is a second, deliberately on
+# different infrastructure: when the database paused in September the whole
+# site went down, and a single cron is a single point of failure for that.
+# GitHub also runs this on a schedule Vercel's Hobby plan will not allow --
+# once a day there, three times a day here.
+#
+# No secrets. It uses the publishable key, which is already in the repo and
+# is shipped to every visitor's browser by design: it identifies the project
+# and authorises nothing, with row-level security deciding every read. These
+# requests see exactly what an anonymous visitor to the public scoreboard
+# sees.
+
+on:
+  schedule:
+    # Spread across the day, so a quiet patch at one hour is not the whole
+    # day's activity. GitHub runs scheduled jobs late under load, which is
+    # fine -- nothing here depends on the minute.
+    - cron: '17 2 * * *'
+    - cron: '17 10 * * *'
+    - cron: '17 18 * * *'
+  # So it can be run by hand from the Actions tab after a pause, without
+  # waiting for the next slot.
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Touch the database
+        env:
+          URL: https://fxkduqairawxmhxatpxd.supabase.co
+          KEY: sb_publishable_k5gB6XikOVgPbtNJ4LALNA_UMVATGkU
+        run: |
+          set -euo pipefail
+          failed=0
+          for table in leagues seasons players events scores; do
+            code=$(curl -sS -o /dev/null -w '%{http_code}' \
+              -H "apikey: $KEY" \
+              -H "Authorization: Bearer $KEY" \
+              -H 'Prefer: count=exact' \
+              --max-time 30 \
+              "$URL/rest/v1/$table?select=id&limit=1")
+            echo "$table -> $code"
+            # A paused project answers 5xx or refuses the connection. Keep
+            # going through the whole list either way: the run should report
+            # the full picture rather than stopping at the first failure.
+            case "$code" in
+              2*) ;;
+              *) failed=1 ;;
+            esac
+          done
+          if [ "$failed" -ne 0 ]; then
+            echo "::error::The database did not answer. It may be paused -- check the Supabase dashboard."
+            exit 1
+          fi
+          echo "Database answered all five requests."
